@@ -149,7 +149,7 @@ interface AttachedFile {
 type ModelId =
   | 'gemini'          // Google Gemini Flash (Recommended)
   | 'gemini-pro'      // Google Gemini Pro
-  | 'openai'          // OpenAI GPT-5.2 (Reference)
+  | 'openai'          // OpenAI GPT-5.4 (Reference)
   | 'openai-mini'     // OpenAI GPT-5 mini
   | 'deepseek'        // DeepSeek Chat
   | 'grok'            // xAI Grok 4.1 Fast
@@ -162,7 +162,7 @@ Models are grouped by provider in the dropdown/bottom sheet:
 - **Google**: Gemini Flash (Recommended), Gemini Pro
 - **Anthropic**: Claude Haiku 4.5
 - **DeepSeek**: DeepSeek Chat
-- **OpenAI**: GPT-5 mini, GPT-5.2 (Reference)
+- **OpenAI**: GPT-5 mini, GPT-5.4 (Reference)
 - **xAI**: Grok 4.1 Fast
 - **Vercel Gateway**: Qwen 3 Max (Experimental)
 

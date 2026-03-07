@@ -447,8 +447,8 @@
   },
   "providers": {
     "gemini": "Gemini 3 Flash",
-    "geminiPro": "Gemini 3 Pro",
-    "openai": "GPT-5.2",
+    "geminiPro": "Gemini 3.1 Pro",
+    "openai": "GPT-5.4",
     "openaiMini": "GPT-5 mini",
     "deepseek": "DeepSeek Chat",
     "grok": "Grok 4.1",

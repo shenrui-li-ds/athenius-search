@@ -24,7 +24,7 @@ jest.mock('next-intl', () => ({
       },
       providers: {
         deepseek: 'DeepSeek',
-        openai: 'GPT-5.2',
+        openai: 'GPT-5.4',
         grok: 'Grok',
         claude: 'Claude Haiku',
         gemini: 'Gemini Flash',

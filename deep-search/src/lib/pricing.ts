@@ -23,12 +23,12 @@ export interface ProviderPricing {
 // Model-level pricing (actual model names)
 export const MODEL_PRICING: Record<string, ModelPricing> = {
   // OpenAI
-  'gpt-5.2': {
+  'gpt-5.4': {
     input: 1.75,
     cachedInput: 0.175,
     output: 14.00,
-    model: 'gpt-5.2-2025-12-11',
-    displayName: 'GPT-5.2',
+    model: 'gpt-5.4',
+    displayName: 'GPT-5.4',
   },
   'gpt-5-mini': {
     input: 0.25,
@@ -39,12 +39,12 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   },
 
   // Google Gemini
-  'gemini-3-pro-preview': {
+  'gemini-3.1-pro-preview': {
     input: 2.00,
     cachedInput: 0.20,
     output: 12.00,
-    model: 'gemini-3-pro-preview',
-    displayName: 'Gemini 3 Pro',
+    model: 'gemini-3.1-pro-preview',
+    displayName: 'Gemini 3.1 Pro',
   },
   'gemini-3-flash-preview': {
     input: 0.50,
@@ -96,9 +96,9 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
 export const PROVIDER_PRICING: Record<string, ProviderPricing> = {
   openai: {
     provider: 'openai',
-    defaultModel: MODEL_PRICING['gpt-5.2'],
+    defaultModel: MODEL_PRICING['gpt-5.4'],
     models: {
-      'gpt-5.2': MODEL_PRICING['gpt-5.2'],
+      'gpt-5.4': MODEL_PRICING['gpt-5.4'],
       'gpt-5-mini': MODEL_PRICING['gpt-5-mini'],
     },
     updatedAt: '2025-01-07',
@@ -107,7 +107,7 @@ export const PROVIDER_PRICING: Record<string, ProviderPricing> = {
     provider: 'gemini',
     defaultModel: MODEL_PRICING['gemini-3-flash-preview'],
     models: {
-      'gemini-3-pro-preview': MODEL_PRICING['gemini-3-pro-preview'],
+      'gemini-3.1-pro-preview': MODEL_PRICING['gemini-3.1-pro-preview'],
       'gemini-3-flash-preview': MODEL_PRICING['gemini-3-flash-preview'],
     },
     updatedAt: '2025-01-07',

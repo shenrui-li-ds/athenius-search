@@ -30,8 +30,8 @@ Maps ModelId to provider and actual model string. Update model strings here when
 | ModelId | Provider | Model String | Label |
 |---------|----------|--------------|-------|
 | `gemini` | gemini | `gemini-3-flash-preview` | Gemini Flash |
-| `gemini-pro` | gemini | `gemini-3-pro-preview` | Gemini Pro |
-| `openai` | openai | `gpt-5.2-2025-12-11` | GPT-5.2 |
+| `gemini-pro` | gemini | `gemini-3.1-pro-preview` | Gemini Pro |
+| `openai` | openai | `gpt-5.4` | GPT-5.4 |
 | `openai-mini` | openai | `gpt-5-mini-2025-08-07` | GPT-5 mini |
 | `deepseek` | deepseek | `deepseek-chat` | DeepSeek Chat |
 | `grok` | grok | `grok-4-1-fast` | Grok 4.1 Fast |

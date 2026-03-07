@@ -433,7 +433,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                       </svg>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" side="bottom" className="w-64 max-h-[320px] overflow-y-auto">
+                  <DropdownMenuContent align="end" side="bottom" className="w-64 max-h-[320px] overflow-y-auto scrollbar-thin">
                     <DropdownMenuLabel>{t('selectModel')}</DropdownMenuLabel>
                     {providerGroupConfigs.map((group, groupIndex) => (
                       <div key={group.key}>

@@ -51,7 +51,7 @@ Optional search fallback (if Tavily is down):
 
 At least one LLM provider key:
 - `DEEPSEEK_API_KEY` - DeepSeek Chat (preferred, cost-effective)
-- `OPENAI_API_KEY` - OpenAI GPT-5.1
+- `OPENAI_API_KEY` - OpenAI GPT-5.4
 - `GROK_API_KEY` - xAI Grok 4.1 Fast
 - `ANTHROPIC_API_KEY` - Anthropic Claude Haiku 4.5
 - `GEMINI_API_KEY` - Google Gemini 3 Flash
@@ -568,9 +568,9 @@ Two-tier caching system (Memory → Supabase → API) reduces costs. See `src/li
 - Model: `grok-4.1-fast`
 
 ### OpenAI
-- Model: `gpt-5.1-2025-11-13` (labeled as "GPT-5.1 · Reference" in UI)
+- Model: `gpt-5.4` (labeled as "GPT-5.4 · Reference" in UI)
 - GPT-5 family models are reasoning models and do not support custom temperature
-- Temperature parameter is automatically omitted for models starting with `o1`, `o3`, or `gpt-5.1`
+- Temperature parameter is automatically omitted for models starting with `o1`, `o3`, `gpt-5.1`, `gpt-5.2`, or `gpt-5.4`
 
 ## Performance Optimizations
 
@@ -658,3 +658,10 @@ GEMINI_API_KEY=
 **For Vercel production:**
 - Add all above via Vercel → Settings → Environment Variables
 - Ensure variables are set for Production, Preview, and Development as needed
+
+## Active Technologies
+- TypeScript 5.x (Next.js 15.2 App Router) + Next.js 15.2, React 19, existing `api-utils.ts` utilities (001-academic-paper-search)
+- Existing Supabase cache (no schema changes) (001-academic-paper-search)
+
+## Recent Changes
+- 001-academic-paper-search: Added TypeScript 5.x (Next.js 15.2 App Router) + Next.js 15.2, React 19, existing `api-utils.ts` utilities

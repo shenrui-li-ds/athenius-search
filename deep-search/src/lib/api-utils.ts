@@ -72,8 +72,8 @@ export type ModelId =
 // When new model versions release, update the model strings here
 export const MODEL_CONFIG: Record<ModelId, { provider: LLMProvider; model: string; label: string }> = {
   'gemini': { provider: 'gemini', model: 'gemini-3-flash-preview', label: 'Gemini Flash' },
-  'gemini-pro': { provider: 'gemini', model: 'gemini-3-pro-preview', label: 'Gemini Pro' },
-  'openai': { provider: 'openai', model: 'gpt-5.2-2025-12-11', label: 'GPT-5.2' },
+  'gemini-pro': { provider: 'gemini', model: 'gemini-3.1-pro-preview', label: 'Gemini Pro' },
+  'openai': { provider: 'openai', model: 'gpt-5.4', label: 'GPT-5.4' },
   'openai-mini': { provider: 'openai', model: 'gpt-5-mini-2025-08-07', label: 'GPT-5 mini' },
   'deepseek': { provider: 'deepseek', model: 'deepseek-chat', label: 'DeepSeek Chat' },
   'grok': { provider: 'grok', model: 'grok-4-1-fast', label: 'Grok 4.1 Fast' },
@@ -306,7 +306,7 @@ export async function callDeepSeek(
 // OpenAI API request
 export async function callOpenAI(
   messages: ChatMessage[],
-  model: string = 'gpt-5.2-2025-12-11',
+  model: string = 'gpt-5.4',
   temperature: number = 0.7,
   stream: boolean = false
 ): Promise<Response | LLMResponse> {
@@ -314,8 +314,8 @@ export async function callOpenAI(
 
   const makeRequest = async (): Promise<Response | LLMResponse> => {
     // Some models (reasoning models like o1, o3, gpt-5) don't support custom temperature
-    // GPT-5, GPT-5.1, GPT-5.2 are reasoning models; GPT-5 mini supports temperature
-    const noTemperatureModels = ['o1', 'o3', 'gpt-5.1', 'gpt-5.2'];
+    // GPT-5, GPT-5.1, GPT-5.2, GPT-5.4 are reasoning models; GPT-5 mini supports temperature
+    const noTemperatureModels = ['o1', 'o3', 'gpt-5.1', 'gpt-5.2', 'gpt-5.4'];
     const supportsTemperature = !noTemperatureModels.some(m => model.startsWith(m));
 
     const requestBody: Record<string, unknown> = {

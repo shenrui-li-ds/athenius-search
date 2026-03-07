@@ -1311,7 +1311,7 @@ const modelProviderGroups: ProviderGroup[] = [
     provider: 'OpenAI',
     models: [
       { id: 'openai-mini', label: 'GPT-5 mini', description: 'Cost-effective' },
-      { id: 'openai', label: 'GPT-5.2', description: 'Higher quality', tag: 'Reference' },
+      { id: 'openai', label: 'GPT-5.4', description: 'Higher quality', tag: 'Reference' },
     ],
   },
   {
