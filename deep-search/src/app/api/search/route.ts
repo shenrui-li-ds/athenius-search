@@ -4,6 +4,7 @@ import { Source, SearchImage, TavilySearchResult } from '@/lib/types';
 import { generateCacheKey, getFromCache, setToCache } from '@/lib/cache';
 import { createClient } from '@/lib/supabase/server';
 import { createApiLogger, createTimer, LogMessages } from '@/lib/logger';
+import { shouldSearchAcademic, searchAcademicSources } from '@/lib/academic-search';
 
 // Helper function to convert Tavily results to our Source format
 function convertToSources(tavilyResults: TavilySearchResult): Source[] {
@@ -97,7 +98,7 @@ export async function POST(req: NextRequest) {
   const timer = createTimer();
 
   try {
-    const { query, searchDepth = 'basic', maxResults = 10 } = await req.json();
+    const { query, searchDepth = 'basic', maxResults = 10, queryType, primaryAspect } = await req.json();
 
     if (!query) {
       log.warn('Missing query parameter');
@@ -145,15 +146,43 @@ export async function POST(req: NextRequest) {
     log.debug(LogMessages.SEARCH_CACHE_MISS, { query });
 
     // Cache miss - call search API with fallback
-    const { results: searchResults, provider: searchProvider } = await callSearchWithFallback(
-      query,
-      true, // include images
-      searchDepth as 'basic' | 'advanced',
-      maxResults
-    );
+    // Run academic search in parallel with Tavily when query type is eligible
+    const includeAcademic = queryType && shouldSearchAcademic(queryType);
+
+    const [tavilyResult, academicResult] = await Promise.all([
+      callSearchWithFallback(
+        query,
+        true, // include images
+        searchDepth as 'basic' | 'advanced',
+        maxResults
+      ),
+      includeAcademic
+        ? searchAcademicSources(query, primaryAspect === true)
+        : Promise.resolve(null),
+    ]);
+
+    const { results: searchResults, provider: searchProvider } = tavilyResult;
+
+    // Merge academic results into Tavily results if available
+    if (academicResult && academicResult.results.results.length > 0) {
+      const existingUrls = new Set(searchResults.results.map(r => r.url));
+      for (const r of academicResult.results.results) {
+        if (!existingUrls.has(r.url)) {
+          searchResults.results.push(r);
+        }
+      }
+    }
 
     // Convert search results to our format
-    const sources = convertToSources(searchResults);
+    const webSources = convertToSources({ ...searchResults, results: tavilyResult.results.results });
+    const academicSources = academicResult?.sources.filter(
+      s => !webSources.some(ws => ws.url === s.url)
+    ) || [];
+
+    const sources = [...webSources, ...academicSources.map((s, i) => ({
+      ...s,
+      id: `s${webSources.length + i + 1}`,
+    }))];
     const images = convertToImages(searchResults);
 
     const response: SearchResponse = {

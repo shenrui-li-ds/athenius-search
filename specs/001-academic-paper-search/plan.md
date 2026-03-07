@@ -65,7 +65,7 @@ deep-search/src/
 │   └── CLAUDE.md                # MODIFIED: Document academic search integration
 ├── app/
 │   ├── search/
-│   │   └── search-client.tsx    # MODIFIED: Dispatch academic searches for eligible queries
+│   │   └── search-client.tsx    # MODIFIED: Pass queryType to /api/search for eligible queries
 │   └── api/
 │       └── search/
 │           └── route.ts         # MODIFIED: Accept queryType param, merge academic results

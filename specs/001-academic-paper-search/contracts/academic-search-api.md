@@ -111,19 +111,22 @@ This is not a new API route — it's a utility module used internally by the sea
 
 ## Modified Endpoint: `/api/search`
 
-No changes to the route's external contract. The route continues to accept the same request body and return the same response shape. Academic results are merged into the response internally when the pipeline provides a `queryType` parameter.
+The route's response shape is unchanged. Academic results are merged into the response server-side before caching, keeping API keys server-side and inheriting existing cache behavior.
 
-**Optional New Query Parameter** (internal use only, passed from search-client):
+**New Optional Request Body Fields** (passed from search-client):
 ```typescript
 {
   // Existing fields...
   query: string;
   searchDepth: string;
   maxResults: number;
-  // New optional field
-  queryType?: QueryType;   // If academic-eligible, triggers academic search
+  // New optional fields
+  queryType?: QueryType;      // If academic-eligible, triggers academic search
+  primaryAspect?: boolean;    // If true, include arXiv search (only for first aspect)
 }
 ```
+
+**Behavior**: When `queryType` is present and `shouldSearchAcademic(queryType)` returns true, the route calls `searchAcademicSources(query, primaryAspect)` in parallel with the Tavily search. Academic results are merged into `rawResults.results` and `sources` before the response is cached and returned.
 
 ## External API Contracts (Third-Party)
 

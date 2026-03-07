@@ -59,6 +59,10 @@ At least one LLM provider key:
 Optional fallback provider:
 - `VERCEL_AI_GATEWAY_KEY` - Vercel AI Gateway (last-resort fallback, uses Qwen 3 235B)
 
+Optional academic paper search (free APIs):
+- `OPENALEX_API_KEY` - OpenAlex API key (optional, for higher rate limits)
+- `OPENALEX_MAILTO` - Email for OpenAlex polite pool access
+
 Supabase (for auth and database):
 - `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anon/public key
@@ -104,6 +108,7 @@ User Query → Navigate Immediately
     ↓
 2. Parallel Search: /api/search × 3-4
    → Executes multiple searches concurrently (10 results each)
+   → For academic/technical/explanatory queries: OpenAlex + arXiv searched in parallel with Tavily
     ↓
 3. Synthesis: /api/research/synthesize (streaming)
    → Combines all search results into 800-1000 word research document

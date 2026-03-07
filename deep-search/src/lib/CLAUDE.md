@@ -493,6 +493,11 @@ interface Source {
   timeAgo?: string;
   readTime?: string;
   snippet?: string;
+  sourceType?: 'web' | 'academic';  // Academic paper vs web source
+  doi?: string;                      // Digital Object Identifier
+  citedByCount?: number;             // Citation count from OpenAlex
+  journalName?: string;              // Journal or conference name
+  publicationYear?: number;          // Year of publication
 }
 
 interface SearchImage {
@@ -513,6 +518,35 @@ interface OpenAIMessage {
   content: string;
 }
 ```
+
+### `academic-search.ts` - Academic Paper Search
+
+Searches OpenAlex and arXiv for academic papers, converts results to `TavilySearchResult` format for pipeline compatibility.
+
+**Key Functions:**
+
+| Function | Description |
+|----------|-------------|
+| `searchOpenAlex(query, maxResults?)` | Search OpenAlex API (250M+ works, JSON, free) |
+| `searchArxiv(query, maxResults?)` | Search arXiv API (2.5M preprints, XML) |
+| `searchAcademicSources(query, includeArxiv?)` | Orchestrate both APIs with `Promise.allSettled` |
+| `shouldSearchAcademic(queryType)` | Returns true for `academic`, `technical`, `explanatory` |
+| `reconstructAbstract(invertedIndex)` | Convert OpenAlex inverted index to plain text |
+
+**Eligible Query Types:** `academic`, `technical`, `explanatory`
+**Non-Eligible:** `shopping`, `travel`, `finance`, `general`
+
+**Graceful Degradation:**
+- All API calls wrapped in try/catch returning empty results on failure
+- 8-second timeout via `AbortController` on both APIs
+- `Promise.allSettled` ensures partial results when one API fails
+- Logs `warn` (not `error`) to avoid Sentry alerts
+
+**Environment Variables (optional):**
+- `OPENALEX_API_KEY` - Higher rate limits (10 req/s polite pool)
+- `OPENALEX_MAILTO` - Polite pool access email
+
+**Integration:** Called from `/api/search/route.ts` in parallel with Tavily when `queryType` is academic-eligible. Results are merged before caching.
 
 ### `text-cleanup.ts` - Content Cleanup
 

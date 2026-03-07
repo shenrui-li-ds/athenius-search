@@ -88,7 +88,10 @@
       "tryDifferent": "Try a different search term",
       "reviewedSources": "Reviewed {count} sources",
       "sourcesCount": "{count} sources",
-      "sourceNumber": "Source {number}"
+      "sourceNumber": "Source {number}",
+      "citedBy": "Cited by {count}",
+      "academicSource": "Academic Paper",
+      "doi": "DOI"
     },
     "actions": {
       "copyText": "Copy as text",

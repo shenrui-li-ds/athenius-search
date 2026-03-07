@@ -7,6 +7,11 @@ export interface Source {
   timeAgo?: string;
   readTime?: string;
   snippet?: string;
+  sourceType?: 'web' | 'academic';
+  doi?: string;
+  citedByCount?: number;
+  journalName?: string;
+  publicationYear?: number;
 }
 
 export interface SearchImage {

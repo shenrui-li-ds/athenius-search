@@ -498,14 +498,16 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         // Step 2: Execute multiple searches in parallel (including docs if files attached)
         setLoadingStage('researching');
 
-        const searchPromises = plan.map((planItem: { aspect: string; query: string }) =>
+        const searchPromises = plan.map((planItem: { aspect: string; query: string }, index: number) =>
           fetch('/api/search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               query: planItem.query,
               searchDepth: 'advanced',
-              maxResults: 10 // 10 per aspect, total ~40 sources
+              maxResults: 10, // 10 per aspect, total ~40 sources
+              queryType: planData.queryType,
+              primaryAspect: index === 0,
             }),
             signal: abortController.signal
           }).then(res => res.json()).then(data => ({

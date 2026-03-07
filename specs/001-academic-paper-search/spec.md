@@ -82,20 +82,19 @@ If OpenAlex or arXiv APIs are unreachable or return errors, the research pipelin
 
 ### Functional Requirements
 
-- **FR-001**: System MUST detect query types eligible for academic search (`academic`, `technical`, `explanatory`) using the existing query router classification.
+- **FR-001**: System MUST dispatch academic searches only for eligible query types (`academic`, `technical`, `explanatory`) using the existing query router classification, and MUST NOT dispatch them for non-eligible types (`shopping`, `travel`, `finance`, `general`).
 - **FR-002**: System MUST search OpenAlex API for relevant papers when the query type is eligible, using the query's research aspect as the search term.
-- **FR-003**: System MUST search arXiv API for relevant preprints when the query type is eligible, using the query's research aspect as the search term.
+- **FR-003**: System MUST search arXiv API for relevant preprints when the query type is eligible, using the primary research query (not per-aspect, due to arXiv's 1 req/3s rate limit).
 - **FR-004**: System MUST dispatch academic searches in parallel with Tavily web searches to avoid adding latency to the pipeline.
 - **FR-005**: System MUST convert OpenAlex and arXiv results into the standard search result format used by the extraction and synthesis pipeline.
 - **FR-006**: System MUST deduplicate sources by URL across all search providers (Tavily, OpenAlex, arXiv).
 - **FR-007**: System MUST assign global citation indices to academic sources alongside web sources for consistent `[1]`, `[2]` referencing.
-- **FR-008**: System MUST NOT dispatch academic searches for non-eligible query types (`shopping`, `travel`, `finance`, `general`).
-- **FR-009**: System MUST handle OpenAlex and arXiv API failures gracefully, proceeding with available results without user-facing errors.
-- **FR-010**: System MUST extend source metadata to include academic-specific fields: source type (academic/web), DOI, citation count, journal/conference name, and publication year.
-- **FR-011**: System MUST limit academic results to a reasonable number per aspect (e.g., 5 from OpenAlex, 3 from arXiv) to keep extraction manageable.
-- **FR-012**: System MUST NOT consume user credits for academic API calls, as both OpenAlex and arXiv APIs are free.
-- **FR-013**: System MUST cache academic search results alongside web results using the existing caching system.
-- **FR-014**: System MUST sort OpenAlex results by relevance and citation count to surface the most authoritative papers.
+- **FR-008**: System MUST handle OpenAlex and arXiv API failures gracefully, proceeding with available results without user-facing errors.
+- **FR-009**: System MUST extend source metadata to include academic-specific fields: source type (academic/web), DOI, citation count, journal/conference name, and publication year.
+- **FR-010**: System MUST limit academic results to 5 from OpenAlex per aspect and 3 from arXiv per query to keep extraction manageable.
+- **FR-011**: System MUST NOT consume user credits for academic API calls, as both OpenAlex and arXiv APIs are free.
+- **FR-012**: System MUST cache academic search results alongside web results using the existing caching system.
+- **FR-013**: System MUST sort OpenAlex results by relevance and citation count to surface the most authoritative papers.
 
 ### Key Entities
 

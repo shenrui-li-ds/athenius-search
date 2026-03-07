@@ -61,6 +61,11 @@ interface Source {
   timeAgo?: string;
   readTime?: string;
   snippet?: string;
+  sourceType?: 'web' | 'academic';
+  doi?: string;
+  citedByCount?: number;
+  journalName?: string;
+  publicationYear?: number;
 }
 
 type LoadingStage = 'refining' | 'searching' | 'summarizing' | 'proofreading' | 'complete' | 'planning' | 'researching' | 'extracting' | 'synthesizing' | 'reframing' | 'exploring' | 'ideating' | 'analyzing_gaps' | 'deepening';
@@ -565,10 +570,17 @@ ${sourcesText}
                             }}
                           />
                           <span className="truncate max-w-[150px]">{getDomain(source.url)}</span>
+                          {source.sourceType === 'academic' && <span className="text-xs" title={t('results.academicSource')}>🎓</span>}
                         </a>
                       </TooltipTrigger>
                       <TooltipContent side="bottom" className="max-w-xs">
                         <p className="font-medium text-sm">{source.title}</p>
+                        {source.sourceType === 'academic' && (
+                          <p className="text-xs text-blue-500 mt-0.5">
+                            {t('results.academicSource')}
+                            {source.citedByCount != null && source.citedByCount > 0 && ` · ${t('results.citedBy', { count: source.citedByCount })}`}
+                          </p>
+                        )}
                         {source.snippet && (
                           <p className="text-xs text-[var(--text-muted)] mt-1 line-clamp-2">{source.snippet}</p>
                         )}
@@ -766,6 +778,29 @@ ${sourcesText}
                         <Badge variant="secondary" className="text-xs">{t('results.sourceNumber', { number: index + 1 })}</Badge>
                       </div>
                       <h3 className="font-medium text-[var(--text-primary)] mb-1 line-clamp-2">{source.title}</h3>
+                      {source.sourceType === 'academic' && (
+                        <div className="flex flex-wrap items-center gap-2 mb-1 text-xs text-[var(--text-muted)]">
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-md font-medium">
+                            🎓 {t('results.academicSource')}
+                          </span>
+                          {source.publicationYear && <span>{source.publicationYear}</span>}
+                          {source.journalName && <span>· {source.journalName}</span>}
+                          {source.citedByCount != null && source.citedByCount > 0 && (
+                            <span>· {t('results.citedBy', { count: source.citedByCount })}</span>
+                          )}
+                          {source.doi && (
+                            <a
+                              href={source.doi}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-500 hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {t('results.doi')}
+                            </a>
+                          )}
+                        </div>
+                      )}
                       {source.snippet && (
                         <p className="text-sm text-[var(--text-secondary)] line-clamp-2">{source.snippet}</p>
                       )}

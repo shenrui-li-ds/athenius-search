@@ -88,7 +88,10 @@
       "tryDifferent": "试试其他搜索词",
       "reviewedSources": "已查阅 {count} 个来源",
       "sourcesCount": "{count} 个来源",
-      "sourceNumber": "来源 {number}"
+      "sourceNumber": "来源 {number}",
+      "citedBy": "被引用 {count} 次",
+      "academicSource": "学术论文",
+      "doi": "DOI"
     },
     "actions": {
       "copyText": "复制文本",

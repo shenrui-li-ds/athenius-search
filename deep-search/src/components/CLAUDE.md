@@ -169,6 +169,13 @@ Models are grouped by provider in the dropdown/bottom sheet:
 ### `SearchResult.tsx`
 Main result display component with floating follow-up input.
 
+**Academic Source Display:**
+When `source.sourceType === 'academic'`, additional metadata is shown:
+- 🎓 badge on source pills (compact view) and cards (Links tab)
+- Publication year, journal name, citation count ("Cited by N")
+- DOI as clickable link
+- i18n keys: `results.academicSource`, `results.citedBy`, `results.doi`
+
 **Follow-up Input (both desktop and mobile):**
 - Fixed at bottom of viewport
 - Includes mode selector (dropdown on desktop, bottom sheet on mobile)
