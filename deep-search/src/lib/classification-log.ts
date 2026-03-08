@@ -11,6 +11,9 @@ export interface ClassificationLogEntry {
   latencyMs: number | null;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SupabaseClient = any;
+
 // In-memory ring buffer for recent classifications (survives within server lifetime)
 const BUFFER_SIZE = 500;
 const recentClassifications: ClassificationLogEntry[] = [];
@@ -22,7 +25,7 @@ const recentClassifications: ClassificationLogEntry[] = [];
  */
 export function logClassification(
   entry: ClassificationLogEntry,
-  supabase?: { from: (table: string) => { insert: (data: Record<string, unknown>) => { then: (fn: () => void) => { catch: (fn: (err: unknown) => void) => void } } } }
+  supabase?: SupabaseClient
 ): void {
   // In-memory ring buffer
   if (recentClassifications.length >= BUFFER_SIZE) {
