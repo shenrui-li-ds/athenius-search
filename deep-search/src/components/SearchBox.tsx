@@ -34,7 +34,7 @@ interface SearchBoxProps {
 }
 
 type SearchMode = 'web' | 'pro' | 'brainstorm';
-type ModelId = 'gemini' | 'gemini-pro' | 'openai' | 'openai-mini' | 'deepseek' | 'grok' | 'claude' | 'vercel-gateway';
+type ModelId = 'gemini' | 'gemini-pro' | 'openai' | 'openai-mini' | 'deepseek' | 'grok' | 'haiku' | 'sonnet' | 'minimax' | 'glm' | 'kimi' | 'qwen';
 
 // Search mode icons - labels come from translations
 const searchModeIcons: Record<SearchMode, React.ReactNode> = {
@@ -58,7 +58,7 @@ const searchModeIcons: Record<SearchMode, React.ReactNode> = {
 const searchModeIds: SearchMode[] = ['web', 'pro', 'brainstorm'];
 
 // Provider groups structure - labels come from translations
-type ProviderKey = 'google' | 'anthropic' | 'deepseek' | 'openai' | 'xai' | 'vercel';
+type ProviderKey = 'google' | 'anthropic' | 'deepseek' | 'openai' | 'xai' | 'minimax' | 'zhipu' | 'moonshot' | 'qwen';
 
 interface ProviderGroupConfig {
   key: ProviderKey;
@@ -68,11 +68,14 @@ interface ProviderGroupConfig {
 
 const providerGroupConfigs: ProviderGroupConfig[] = [
   { key: 'google', models: ['gemini', 'gemini-pro'] },
-  { key: 'anthropic', models: ['claude'] },
+  { key: 'anthropic', models: ['haiku', 'sonnet'] },
   { key: 'deepseek', models: ['deepseek'] },
   { key: 'openai', models: ['openai-mini', 'openai'] },
   { key: 'xai', models: ['grok'] },
-  { key: 'vercel', models: ['vercel-gateway'], experimental: true },
+  { key: 'minimax', models: ['minimax'], experimental: true },
+  { key: 'zhipu', models: ['glm'], experimental: true },
+  { key: 'moonshot', models: ['kimi'], experimental: true },
+  { key: 'qwen', models: ['qwen'], experimental: true },
 ];
 
 // Map model IDs to translation keys
@@ -83,8 +86,12 @@ const modelTranslationKeys: Record<ModelId, string> = {
   'openai-mini': 'openaiMini',
   'deepseek': 'deepseek',
   'grok': 'grok',
-  'claude': 'claude',
-  'vercel-gateway': 'vercelGateway',
+  'haiku': 'haiku',
+  'sonnet': 'sonnet',
+  'minimax': 'minimax',
+  'glm': 'glm',
+  'kimi': 'kimi',
+  'qwen': 'vercelGateway',
 };
 
 // Quick action keys for translation lookup

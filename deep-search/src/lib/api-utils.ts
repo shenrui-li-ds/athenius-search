@@ -65,8 +65,12 @@ export type ModelId =
   | 'openai-mini'     // OpenAI mini series (latest)
   | 'deepseek'        // DeepSeek Chat
   | 'grok'            // xAI Grok
-  | 'claude'          // Anthropic Claude
-  | 'vercel-gateway'; // Vercel AI Gateway
+  | 'haiku'           // Anthropic Claude Haiku 4.5
+  | 'sonnet'          // Anthropic Claude Sonnet 4.6
+  | 'minimax'         // MiniMax M2.5 (via Vercel Gateway)
+  | 'glm'             // Zhipu GLM-5 (via Vercel Gateway)
+  | 'kimi'            // Moonshot Kimi K2.5 (via Vercel Gateway)
+  | 'qwen';           // Qwen 3 Max (via Vercel Gateway)
 
 // Model configuration - maps ModelId to provider and actual model name
 // When new model versions release, update the model strings here
@@ -77,8 +81,12 @@ export const MODEL_CONFIG: Record<ModelId, { provider: LLMProvider; model: strin
   'openai-mini': { provider: 'openai', model: 'gpt-5-mini-2025-08-07', label: 'GPT-5 mini' },
   'deepseek': { provider: 'deepseek', model: 'deepseek-chat', label: 'DeepSeek Chat' },
   'grok': { provider: 'grok', model: 'grok-4-1-fast', label: 'Grok 4.1 Fast' },
-  'claude': { provider: 'claude', model: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
-  'vercel-gateway': { provider: 'vercel-gateway', model: 'alibaba/qwen3-max', label: 'Qwen 3 Max' },
+  'haiku': { provider: 'claude', model: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
+  'sonnet': { provider: 'claude', model: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
+  'minimax': { provider: 'vercel-gateway', model: 'minimax/minimax-m2.5-highspeed', label: 'MiniMax M2.5' },
+  'glm': { provider: 'vercel-gateway', model: 'zai/glm-5', label: 'GLM-5' },
+  'kimi': { provider: 'vercel-gateway', model: 'moonshotai/kimi-k2.5', label: 'Kimi K2.5' },
+  'qwen': { provider: 'vercel-gateway', model: 'alibaba/qwen3-max', label: 'Qwen 3 Max' },
 };
 
 // Get provider from model ID
@@ -924,8 +932,8 @@ function callLLMForProvider(
     'openai': 'openai',
     'deepseek': 'deepseek',
     'grok': 'grok',
-    'claude': 'claude',
-    'vercel-gateway': 'vercel-gateway',
+    'claude': 'haiku',
+    'vercel-gateway': 'qwen',
   };
 
   const modelId = providerToDefaultModelId[provider];

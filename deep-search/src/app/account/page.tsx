@@ -1272,7 +1272,7 @@ function ProfileTab({
 }
 
 // Grouped model providers structure for preferences
-type ModelId = 'gemini' | 'gemini-pro' | 'openai' | 'openai-mini' | 'deepseek' | 'grok' | 'claude' | 'vercel-gateway';
+type ModelId = 'gemini' | 'gemini-pro' | 'openai' | 'openai-mini' | 'deepseek' | 'grok' | 'haiku' | 'sonnet' | 'minimax' | 'glm' | 'kimi' | 'qwen';
 
 interface ModelOption {
   id: ModelId;
@@ -1298,7 +1298,8 @@ const modelProviderGroups: ProviderGroup[] = [
   {
     provider: 'Anthropic',
     models: [
-      { id: 'claude', label: 'Claude Haiku 4.5', description: 'Latest & fast' },
+      { id: 'haiku', label: 'Claude Haiku 4.5', description: 'Latest & fast' },
+      { id: 'sonnet', label: 'Claude Sonnet 4.6', description: 'Reference' },
     ],
   },
   {
@@ -1321,9 +1322,30 @@ const modelProviderGroups: ProviderGroup[] = [
     ],
   },
   {
-    provider: 'Vercel Gateway',
+    provider: 'MiniMax',
     models: [
-      { id: 'vercel-gateway', label: 'Qwen 3 Max', description: 'Fallback' },
+      { id: 'minimax', label: 'MiniMax M2.5' },
+    ],
+    experimental: true,
+  },
+  {
+    provider: 'Zhipu AI',
+    models: [
+      { id: 'glm', label: 'GLM-5' },
+    ],
+    experimental: true,
+  },
+  {
+    provider: 'Moonshot',
+    models: [
+      { id: 'kimi', label: 'Kimi K2.5' },
+    ],
+    experimental: true,
+  },
+  {
+    provider: 'Qwen',
+    models: [
+      { id: 'qwen', label: 'Qwen 3 Max', description: 'Fallback' },
     ],
     experimental: true,
   },
@@ -1944,10 +1966,14 @@ function UsageTab() {
       openai: 'openai',
       'openai-mini': 'openaiMini',
       grok: 'grok',
-      claude: 'claude',
+      haiku: 'haiku',
+      sonnet: 'sonnet',
       gemini: 'gemini',
       'gemini-pro': 'geminiPro',
-      'vercel-gateway': 'vercelGateway',
+      minimax: 'minimax',
+      glm: 'glm',
+      kimi: 'kimi',
+      qwen: 'vercelGateway',
     };
     return tProviders(providerKeys[provider] || provider);
   };

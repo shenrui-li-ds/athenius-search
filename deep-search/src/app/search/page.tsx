@@ -6,7 +6,7 @@ import SearchClient from './search-client';
 
 // Valid values for URL params (prevents injection of arbitrary values)
 const VALID_MODES = ['web', 'pro', 'brainstorm'] as const;
-const VALID_PROVIDERS = ['deepseek', 'openai', 'grok', 'claude', 'gemini', 'gemini-pro', 'openai-mini', 'vercel-gateway'] as const;
+const VALID_PROVIDERS = ['deepseek', 'openai', 'grok', 'haiku', 'sonnet', 'gemini', 'gemini-pro', 'openai-mini', 'minimax', 'glm', 'kimi', 'qwen'] as const;
 
 type SearchMode = typeof VALID_MODES[number];
 type SearchProvider = typeof VALID_PROVIDERS[number];

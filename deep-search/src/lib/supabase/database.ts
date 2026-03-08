@@ -50,8 +50,12 @@ export type UserModelId =
   | 'openai-mini'     // OpenAI mini series (latest)
   | 'deepseek'        // DeepSeek Chat
   | 'grok'            // xAI Grok
-  | 'claude'          // Anthropic Claude
-  | 'vercel-gateway'; // Vercel AI Gateway
+  | 'haiku'           // Anthropic Claude Haiku 4.5
+  | 'sonnet'          // Anthropic Claude Sonnet 4.6
+  | 'minimax'         // MiniMax M2.5 (via Vercel Gateway)
+  | 'glm'             // Zhipu GLM-5 (via Vercel Gateway)
+  | 'kimi'            // Moonshot Kimi K2.5 (via Vercel Gateway)
+  | 'qwen';           // Qwen 3 Max (via Vercel Gateway)
 
 export type UILanguage = 'en' | 'zh';
 

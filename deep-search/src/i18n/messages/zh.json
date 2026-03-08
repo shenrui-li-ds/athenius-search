@@ -455,7 +455,11 @@
     "openaiMini": "GPT-5 mini",
     "deepseek": "DeepSeek Chat",
     "grok": "Grok 4.1",
-    "claude": "Claude Haiku 4.5",
+    "haiku": "Claude Haiku 4.5",
+    "sonnet": "Claude Sonnet 4.6",
+    "minimax": "MiniMax M2.5",
+    "glm": "GLM-5",
+    "kimi": "Kimi K2.5",
     "vercelGateway": "Qwen 3 Max"
   },
   "providerGroups": {
@@ -463,8 +467,11 @@
     "anthropic": "Anthropic",
     "openai": "OpenAI",
     "xai": "xAI",
-    "deepseek": "DeepSeek",
-    "vercel": "Vercel Gateway"
+    "deepseek": "深度求索",
+    "minimax": "MiniMax",
+    "zhipu": "智谱 AI",
+    "moonshot": "月之暗面",
+    "qwen": "千问"
   },
   "landing": {
     "nav": {

@@ -86,7 +86,7 @@ export default function SearchHome() {
             <SearchBox
               large={true}
               autoFocus={true}
-              defaultProvider={defaultProvider as 'gemini' | 'gemini-pro' | 'openai' | 'openai-mini' | 'deepseek' | 'grok' | 'claude' | 'vercel-gateway'}
+              defaultProvider={defaultProvider as 'gemini' | 'gemini-pro' | 'openai' | 'openai-mini' | 'deepseek' | 'grok' | 'haiku' | 'sonnet' | 'minimax' | 'glm' | 'kimi' | 'qwen'}
               defaultMode={defaultMode}
             />
           </div>
