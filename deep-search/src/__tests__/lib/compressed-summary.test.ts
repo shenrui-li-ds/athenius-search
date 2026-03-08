@@ -163,6 +163,109 @@ describe('compressAspectSummary', () => {
   });
 });
 
+describe('compressAspectSummary with finance queryType', () => {
+  it('detects no valuation data when valuationData is empty', () => {
+    const result = compressAspectSummary(
+      mockExtraction({ valuationData: [] }),
+      mockSources(),
+      'finance'
+    );
+    expect(result.weakAreas).toContain('No valuation data');
+    expect(result.valuationDataCount).toBe(0);
+  });
+
+  it('detects no analyst views when expertOpinions empty in finance context', () => {
+    const result = compressAspectSummary(
+      mockExtraction({ expertOpinions: [] }),
+      mockSources(),
+      'finance'
+    );
+    expect(result.weakAreas).toContain('No analyst views');
+  });
+
+  it('detects no risk assessment when riskFactors is empty', () => {
+    const result = compressAspectSummary(
+      mockExtraction({ riskFactors: [] }),
+      mockSources(),
+      'finance'
+    );
+    expect(result.weakAreas).toContain('No risk assessment');
+    expect(result.riskFactorCount).toBe(0);
+  });
+
+  it('detects no competitive comparison when single org entity', () => {
+    const result = compressAspectSummary(
+      mockExtraction({
+        entities: [{ name: 'Tesla', normalizedName: 'tesla', type: 'organization' }],
+      }),
+      mockSources(),
+      'finance'
+    );
+    expect(result.weakAreas).toContain('No competitive comparison');
+  });
+
+  it('does NOT flag competitive comparison when multiple org entities', () => {
+    const result = compressAspectSummary(
+      mockExtraction({
+        entities: [
+          { name: 'Tesla', normalizedName: 'tesla', type: 'organization' },
+          { name: 'Ford', normalizedName: 'ford', type: 'organization' },
+        ],
+      }),
+      mockSources(),
+      'finance'
+    );
+    expect(result.weakAreas).not.toContain('No competitive comparison');
+  });
+
+  it('non-finance queries use generic weak areas only', () => {
+    const result = compressAspectSummary(
+      mockExtraction({ expertOpinions: [], riskFactors: [], valuationData: [] }),
+      mockSources()
+    );
+    // Should have generic 'No expert opinions' but NOT finance-specific labels
+    expect(result.weakAreas).toContain('No expert opinions');
+    expect(result.weakAreas).not.toContain('No analyst views');
+    expect(result.weakAreas).not.toContain('No valuation data');
+    expect(result.weakAreas).not.toContain('No risk assessment');
+  });
+
+  it('includes finance-specific counts in output', () => {
+    const result = compressAspectSummary(
+      mockExtraction({
+        financialMetrics: [
+          { metric: 'Revenue', value: '$26B', period: 'Q3 2024', context: 'Record' },
+          { metric: 'EPS', value: '$6.12', period: 'Q3 2024', context: 'Beat' },
+        ],
+        valuationData: [
+          { metric: 'P/E', currentValue: '65' },
+        ],
+        riskFactors: [
+          { factor: 'Supply chain', type: 'risk', severity: 'high', description: 'TSMC dependency' },
+          { factor: 'AI demand', type: 'opportunity', severity: 'medium', description: 'Growing' },
+          { factor: 'Regulation', type: 'risk', severity: 'low', description: 'EU AI Act' },
+        ],
+      }),
+      mockSources(),
+      'finance'
+    );
+    expect(result.financialMetricCount).toBe(2);
+    expect(result.valuationDataCount).toBe(1);
+    expect(result.riskFactorCount).toBe(3);
+  });
+
+  it('defaults finance counts to 0 when fields absent', () => {
+    const result = compressAspectSummary(
+      mockExtraction(),
+      mockSources(),
+      'finance'
+    );
+    expect(result.financialMetricCount).toBe(0);
+    expect(result.valuationDataCount).toBe(0);
+    expect(result.riskFactorCount).toBe(0);
+  });
+});
+
 describe('formatCompressedSummaries', () => {
   it('formats summaries as text for gap analyzer prompt', () => {
     const summaries: CompressedAspectSummary[] = [

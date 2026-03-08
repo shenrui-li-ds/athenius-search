@@ -15,7 +15,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 // Types
 // =============================================================================
 
-export type CacheType = 'search' | 'refine' | 'summary' | 'related' | 'plan' | 'research-synthesis' | 'brainstorm-synthesis' | 'round1-extractions' | 'round2-data';
+export type CacheType = 'search' | 'refine' | 'summary' | 'related' | 'plan' | 'research-synthesis' | 'brainstorm-synthesis' | 'round1-extractions' | 'round2-data' | 'classification';
 
 interface CacheEntry<T> {
   data: T;
@@ -44,6 +44,7 @@ const CONFIG = {
     'brainstorm-synthesis': 48, // Brainstorm synthesis: 48 hours
     'round1-extractions': 24, // Round 1 extractions: 24 hours (shorter TTL, source data may change)
     'round2-data': 24,        // Round 2 data: 24 hours (gap analysis + R2 extractions)
+    'classification': 48,     // Classification: 48 hours (provider-independent)
   },
 };
 
@@ -221,6 +222,10 @@ export function generateCacheKey(
       // Round 2 data: query + R1 extractions hash + provider
       // Uses R1 extractions hash to ensure R2 cache is invalidated when R1 changes
       return `round2:${md5(normalizedQuery)}:${params.round1ExtractionsHash || 'nohash'}:${params.provider || 'default'}`;
+
+    case 'classification':
+      // Classification: query only (provider-independent — classification is a property of the query)
+      return `classify:${md5(normalizedQuery)}`;
 
     default:
       return `unknown:${md5(normalizedQuery)}`;

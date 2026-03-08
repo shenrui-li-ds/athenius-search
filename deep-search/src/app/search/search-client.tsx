@@ -10,7 +10,7 @@ import type { Round1CacheData } from '@/app/api/research/cache-round1/route';
 import type { Round2CacheData } from '@/app/api/research/cache-round2/route';
 import { mergeEntities } from '@/lib/entity-merge';
 import { tagSourceAuthority } from '@/lib/source-authority';
-import type { CrossCuttingEntity } from '@/lib/types';
+// CrossCuttingEntity type inferred from MergeEntitiesResult destructuring
 import { Button } from '@/components/ui/button';
 import { ErrorType, errorMessages, detectErrorType } from '@/lib/error-types';
 
@@ -427,6 +427,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
         const planData = await planResponse.json();
         const plan = planData.plan || [{ aspect: 'general', query }];
+        const currentQueryType: string | undefined = planData.queryType;
+        // financeSubType available as planData.financeSubType for future UI use
 
         // Store research thinking state for UI display
         if (planData.queryType) {
@@ -638,7 +640,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
               query,
               aspectResult,
               globalSourceIndex,
-              provider
+              provider,
+              ...(currentQueryType && { queryType: currentQueryType }),
             }),
             signal: abortController.signal
           }).then(res => res.json()).then(data => data.extraction)
@@ -686,8 +689,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         const r1ExtractionsHash = simpleHash(JSON.stringify(validExtractions));
 
         // Merge entities across aspects to find cross-cutting entities
-        const crossCuttingEntities: CrossCuttingEntity[] = mergeEntities(
-          validExtractions as Array<{ aspect: string; entities?: import('@/lib/types').ExtractedEntity[] }>
+        const { crossCuttingEntities, competitiveCluster } = mergeEntities(
+          validExtractions as Array<{ aspect: string; entities?: import('@/lib/types').ExtractedEntity[] }>,
+          currentQueryType
         );
         if (crossCuttingEntities.length > 0) {
           console.log(`[Deep Research] Found ${crossCuttingEntities.length} cross-cutting entities:`,
@@ -769,6 +773,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
                 highAuthorityCount: allSources.filter(s => tagSourceAuthority(s.url) === 'high-authority').length,
                 unclassifiedCount: allSources.filter(s => tagSourceAuthority(s.url) === 'unclassified').length,
               },
+              ...(currentQueryType && { queryType: currentQueryType }),
             }),
             signal: abortController.signal
           });
@@ -886,7 +891,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
                       query,
                       aspectResult,
                       globalSourceIndex,
-                      provider
+                      provider,
+                      ...(currentQueryType && { queryType: currentQueryType }),
                     }),
                     signal: abortController.signal
                   }).then(res => res.json()).then(data => data.extraction)
@@ -991,6 +997,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
               highAuthorityCount: allSources.filter(s => tagSourceAuthority(s.url) === 'high-authority').length,
               unclassifiedCount: allSources.filter(s => tagSourceAuthority(s.url) === 'unclassified').length,
             },
+            ...(currentQueryType && { queryType: currentQueryType }),
+            ...(competitiveCluster && { competitiveCluster }),
           }),
           signal: abortController.signal
         });

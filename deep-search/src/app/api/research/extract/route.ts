@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callLLM, LLMProvider, detectLanguage, LLMResponse } from '@/lib/api-utils';
 import { aspectExtractorPrompt } from '@/lib/prompts';
-import { OpenAIMessage, ExtractedEntity, SourceAuthority } from '@/lib/types';
+import { OpenAIMessage, ExtractedEntity, SourceAuthority, FinancialMetric, ValuationDataPoint, RiskFactor } from '@/lib/types';
 import { trackServerApiUsage, estimateTokens } from '@/lib/supabase/usage-tracking';
 import { tagSourceAuthority } from '@/lib/source-authority';
 
@@ -57,6 +57,9 @@ export interface AspectExtraction {
   contradictions: ExtractedContradiction[];
   keyInsight: string;
   entities: ExtractedEntity[];
+  financialMetrics?: FinancialMetric[];
+  valuationData?: ValuationDataPoint[];
+  riskFactors?: RiskFactor[];
 }
 
 function formatSourcesForExtraction(
@@ -100,9 +103,40 @@ function parseEntities(raw: unknown): ExtractedEntity[] {
   );
 }
 
+const VALID_RISK_TYPES = new Set(['risk', 'opportunity']);
+const VALID_SEVERITIES = new Set(['high', 'medium', 'low']);
+
+function parseFinancialMetrics(raw: unknown): FinancialMetric[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (m): m is FinancialMetric =>
+      m != null && typeof m.metric === 'string' && typeof m.value === 'string'
+  );
+}
+
+function parseValuationData(raw: unknown): ValuationDataPoint[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (v): v is ValuationDataPoint =>
+      v != null && typeof v.metric === 'string' && typeof v.currentValue === 'string'
+  );
+}
+
+function parseRiskFactors(raw: unknown): RiskFactor[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (r): r is RiskFactor =>
+      r != null &&
+      typeof r.factor === 'string' &&
+      typeof r.description === 'string' &&
+      VALID_RISK_TYPES.has(r.type) &&
+      VALID_SEVERITIES.has(r.severity)
+  );
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { query, aspectResult, globalSourceIndex, provider } = await req.json();
+    const { query, aspectResult, globalSourceIndex, provider, queryType } = await req.json();
     const llmProvider = provider as LLMProvider | undefined;
 
     if (!query || !aspectResult) {
@@ -127,7 +161,7 @@ export async function POST(req: NextRequest) {
     );
 
     // Create the extraction prompt
-    const prompt = aspectExtractorPrompt(aspectResult.aspect, query, detectedLanguage);
+    const prompt = aspectExtractorPrompt(aspectResult.aspect, query, detectedLanguage, queryType);
 
     const completePrompt = `
 ${prompt}
@@ -181,6 +215,11 @@ Return ONLY valid JSON matching the specified format.
         contradictions: Array.isArray(extraction.contradictions) ? extraction.contradictions : [],
         keyInsight: extraction.keyInsight || '',
         entities: parseEntities(extraction.entities),
+        ...(queryType === 'finance' && {
+          financialMetrics: parseFinancialMetrics(extraction.financialMetrics),
+          valuationData: parseValuationData(extraction.valuationData),
+          riskFactors: parseRiskFactors(extraction.riskFactors),
+        }),
       };
     } catch (parseError) {
       console.error('Failed to parse extraction JSON:', parseError);
