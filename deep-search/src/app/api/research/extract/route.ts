@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callLLM, LLMProvider, detectLanguage, LLMResponse } from '@/lib/api-utils';
 import { aspectExtractorPrompt } from '@/lib/prompts';
-import { OpenAIMessage } from '@/lib/types';
+import { OpenAIMessage, ExtractedEntity, SourceAuthority } from '@/lib/types';
 import { trackServerApiUsage, estimateTokens } from '@/lib/supabase/usage-tracking';
+import { tagSourceAuthority } from '@/lib/source-authority';
 
 interface SearchResultItem {
   title: string;
@@ -55,6 +56,7 @@ export interface AspectExtraction {
   expertOpinions: ExtractedExpertOpinion[];
   contradictions: ExtractedContradiction[];
   keyInsight: string;
+  entities: ExtractedEntity[];
 }
 
 function formatSourcesForExtraction(
@@ -79,6 +81,23 @@ function formatSourcesForExtraction(
   }
 
   return formatted;
+}
+
+const VALID_ENTITY_TYPES = new Set(['person', 'organization', 'technology', 'concept', 'location', 'event']);
+
+/**
+ * Safely parse entities from LLM output, defaulting to [] on malformed data (FR-012).
+ */
+function parseEntities(raw: unknown): ExtractedEntity[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (e): e is ExtractedEntity =>
+      e != null &&
+      typeof e.name === 'string' &&
+      e.name.length > 0 &&
+      typeof e.normalizedName === 'string' &&
+      VALID_ENTITY_TYPES.has(e.type)
+  );
 }
 
 export async function POST(req: NextRequest) {
@@ -160,7 +179,8 @@ Return ONLY valid JSON matching the specified format.
         definitions: Array.isArray(extraction.definitions) ? extraction.definitions : [],
         expertOpinions: Array.isArray(extraction.expertOpinions) ? extraction.expertOpinions : [],
         contradictions: Array.isArray(extraction.contradictions) ? extraction.contradictions : [],
-        keyInsight: extraction.keyInsight || ''
+        keyInsight: extraction.keyInsight || '',
+        entities: parseEntities(extraction.entities),
       };
     } catch (parseError) {
       console.error('Failed to parse extraction JSON:', parseError);
@@ -172,8 +192,15 @@ Return ONLY valid JSON matching the specified format.
         definitions: [],
         expertOpinions: [],
         contradictions: [],
-        keyInsight: 'Extraction failed - using raw data'
+        keyInsight: 'Extraction failed - using raw data',
+        entities: [],
       };
+    }
+
+    // Tag source authority for each source URL
+    const sourceAuthorityMap: Record<string, SourceAuthority> = {};
+    for (const result of (aspectResult.results || [])) {
+      sourceAuthorityMap[result.url] = tagSourceAuthority(result.url);
     }
 
     // Return updated source index map along with extraction
@@ -181,7 +208,8 @@ Return ONLY valid JSON matching the specified format.
 
     return NextResponse.json({
       extraction,
-      updatedSourceIndex
+      updatedSourceIndex,
+      sourceAuthority: sourceAuthorityMap,
     });
 
   } catch (error) {

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callLLM, LLMProvider, LLMResponse } from '@/lib/api-utils';
 import { gapAnalyzerPrompt } from '@/lib/prompts';
-import { OpenAIMessage } from '@/lib/types';
+import { OpenAIMessage, CrossCuttingEntity } from '@/lib/types';
 import { trackServerApiUsage, estimateTokens } from '@/lib/supabase/usage-tracking';
+import { compressAspectSummary, formatCompressedSummaries } from '@/lib/compressed-summary';
 
 export type GapType =
   | 'missing_perspective'
@@ -44,7 +45,7 @@ function summarizeExtractedData(extractedData: ExtractedAspect[]): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const { query, extractedData, language, provider } = await req.json();
+    const { query, extractedData, language, provider, crossCuttingEntities = [], sourceAuthority } = await req.json();
     const llmProvider = provider as LLMProvider | undefined;
 
     if (!query || !extractedData) {
@@ -54,8 +55,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Summarize the extracted data for the prompt
-    const extractedSummary = summarizeExtractedData(extractedData);
+    // Build compressed structured summaries from extracted data
+    const compressedSummaries = extractedData.map((aspect: ExtractedAspect & { claims?: Array<{ statement: string; confidence?: string }>; statistics?: Array<{ year?: string }>; expertOpinions?: unknown[]; contradictions?: Array<{ claim1: string; claim2: string }>; entities?: Array<{ normalizedName: string }> }) =>
+      compressAspectSummary(aspect, []) // Sources are tagged at query time via tagSourceAuthority
+    );
+    let extractedSummary = formatCompressedSummaries(compressedSummaries);
+
+    // Append cross-cutting entity context if available
+    const typedEntities = crossCuttingEntities as CrossCuttingEntity[];
+    if (typedEntities.length > 0) {
+      extractedSummary += '\n\nCross-cutting entities (appear across multiple aspects):\n' +
+        typedEntities.map((e: CrossCuttingEntity) => `- ${e.name} (${e.type}): appears in ${e.aspects.join(', ')}`).join('\n');
+    }
+
+    // Append source authority context if available
+    if (sourceAuthority) {
+      extractedSummary += `\n\nOverall source authority: ${sourceAuthority.highAuthorityCount || 0} high-authority, ${sourceAuthority.unclassifiedCount || 0} unclassified`;
+    }
 
     // Build the prompt
     const prompt = gapAnalyzerPrompt(query, extractedSummary, language || 'English');

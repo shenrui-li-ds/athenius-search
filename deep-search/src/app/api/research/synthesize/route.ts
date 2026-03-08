@@ -9,7 +9,7 @@ import {
   LLMResponse
 } from '@/lib/api-utils';
 import { researchSynthesizerPrompt, deepResearchSynthesizerPrompt } from '@/lib/prompts';
-import { OpenAIMessage } from '@/lib/types';
+import { OpenAIMessage, CrossCuttingEntity } from '@/lib/types';
 import { AspectExtraction } from '../extract/route';
 import { generateCacheKey, getFromCache, setToCache } from '@/lib/cache';
 import { createClient } from '@/lib/supabase/server';
@@ -130,7 +130,7 @@ function formatExtractionsForSynthesis(extractions: AspectExtraction[]): string 
 
 export async function POST(req: NextRequest) {
   try {
-    const { query, aspectResults, extractedData, stream = true, provider, deep = false, gapDescriptions = [] } = await req.json();
+    const { query, aspectResults, extractedData, stream = true, provider, deep = false, gapDescriptions = [], crossCuttingEntities = [], sourceAuthority } = await req.json();
     const llmProvider = provider as LLMProvider | undefined;
 
     // Support both old format (aspectResults) and new format (extractedData)
@@ -232,9 +232,28 @@ Use the source index numbers [1], [2], etc. as shown in the results for your cit
 
     const targetLength = deep ? '1000-1200 words' : '800-1000 words';
 
+    // Build cross-cutting entities context if available
+    const typedEntities = crossCuttingEntities as CrossCuttingEntity[];
+    let entityContext = '';
+    if (typedEntities.length > 0) {
+      entityContext += `\n<crossCuttingEntities>
+${typedEntities.map((e: CrossCuttingEntity) => `  <entity name="${e.name}" aspects="${e.aspects.join(', ')}" />`).join('\n')}
+</crossCuttingEntities>
+<entityInstruction>The above entities appear across multiple research aspects. Connect and integrate perspectives around these shared entities rather than treating each aspect in isolation.</entityInstruction>\n`;
+    }
+
+    // Build source authority context if available
+    if (sourceAuthority && (sourceAuthority.highAuthorityCount > 0 || sourceAuthority.unclassifiedCount > 0)) {
+      entityContext += `\n<sourceAuthority>
+  <highAuthority count="${sourceAuthority.highAuthorityCount}" />
+  <unclassified count="${sourceAuthority.unclassifiedCount}" />
+</sourceAuthority>
+<authorityInstruction>Give appropriate weight to claims backed by high-authority sources (academic, institutional, government). When sources conflict, prefer high-authority sources.</authorityInstruction>\n`;
+    }
+
     const completePrompt = `
 ${synthesizerPrompt}
-
+${entityContext}
 <researchData>
 ${formattedData}
 </researchData>

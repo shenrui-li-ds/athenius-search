@@ -14,6 +14,12 @@ jest.mock('@/lib/prompts', () => ({
   gapAnalyzerPrompt: jest.fn(() => 'mocked gap analyzer prompt'),
 }));
 
+// Mock the usage-tracking module
+jest.mock('@/lib/supabase/usage-tracking', () => ({
+  trackServerApiUsage: jest.fn(() => Promise.resolve()),
+  estimateTokens: jest.fn(() => 100),
+}));
+
 import { callLLM } from '@/lib/api-utils';
 
 const mockCallLLM = callLLM as jest.MockedFunction<typeof callLLM>;
@@ -257,5 +263,76 @@ describe('/api/research/analyze-gaps', () => {
       false, // Non-streaming
       'claude'
     );
+  });
+
+  describe('compressed summary and entity context', () => {
+    it('accepts crossCuttingEntities and sourceAuthority in request', async () => {
+      mockCallLLM.mockResolvedValueOnce({ content: '[]', usage: undefined });
+
+      const request = new NextRequest('http://localhost:3000/api/research/analyze-gaps', {
+        method: 'POST',
+        body: JSON.stringify({
+          query: 'tesla impact',
+          extractedData: mockExtractedData,
+          language: 'English',
+          provider: 'deepseek',
+          crossCuttingEntities: [
+            { name: 'Tesla', normalizedName: 'tesla', type: 'organization', aspects: ['automotive', 'energy'], count: 2 },
+          ],
+          sourceAuthority: {
+            highAuthorityCount: 5,
+            unclassifiedCount: 12,
+          },
+        }),
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      // Verify the LLM was called with structured content including entity and authority context
+      const llmCall = mockCallLLM.mock.calls[0];
+      const userMessage = llmCall[0][1].content as string;
+      expect(userMessage).toContain('Cross-cutting entities');
+      expect(userMessage).toContain('Tesla');
+      expect(userMessage).toContain('5 high-authority');
+    });
+
+    it('uses compressed summary format instead of lossy text summary', async () => {
+      mockCallLLM.mockResolvedValueOnce({ content: '[]', usage: undefined });
+
+      const enrichedData = [
+        {
+          aspect: 'fundamentals',
+          keyInsight: 'Key finding',
+          claims: [
+            { statement: 'Claim 1', confidence: 'established' },
+            { statement: 'Claim 2', confidence: 'emerging' },
+          ],
+          statistics: [{ metric: 'Growth', value: '15%', year: '2024' }],
+          expertOpinions: [{ expert: 'Dr. X', opinion: 'Promising' }],
+          contradictions: [],
+          entities: [{ normalizedName: 'quantum' }],
+        },
+      ];
+
+      const request = new NextRequest('http://localhost:3000/api/research/analyze-gaps', {
+        method: 'POST',
+        body: JSON.stringify({
+          query: 'quantum computing',
+          extractedData: enrichedData,
+        }),
+      });
+
+      const response = await POST(request);
+      expect(response.status).toBe(200);
+
+      // Verify compressed summary format is used (contains structured metadata)
+      const llmCall = mockCallLLM.mock.calls[0];
+      const userMessage = llmCall[0][1].content as string;
+      expect(userMessage).toContain('Aspect: fundamentals');
+      expect(userMessage).toContain('established');
+      expect(userMessage).toContain('Expert opinions:');
+    });
   });
 });

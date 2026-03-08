@@ -8,6 +8,9 @@ import type { QueryType, ResearchPlanItem } from '@/app/api/research/plan/route'
 import type { ResearchGap, AnalyzeGapsResponse } from '@/app/api/research/analyze-gaps/route';
 import type { Round1CacheData } from '@/app/api/research/cache-round1/route';
 import type { Round2CacheData } from '@/app/api/research/cache-round2/route';
+import { mergeEntities } from '@/lib/entity-merge';
+import { tagSourceAuthority } from '@/lib/source-authority';
+import type { CrossCuttingEntity } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { ErrorType, errorMessages, detectErrorType } from '@/lib/error-types';
 
@@ -682,6 +685,15 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         // Compute R1 extractions hash for R2 cache key
         const r1ExtractionsHash = simpleHash(JSON.stringify(validExtractions));
 
+        // Merge entities across aspects to find cross-cutting entities
+        const crossCuttingEntities: CrossCuttingEntity[] = mergeEntities(
+          validExtractions as Array<{ aspect: string; entities?: import('@/lib/types').ExtractedEntity[] }>
+        );
+        if (crossCuttingEntities.length > 0) {
+          console.log(`[Deep Research] Found ${crossCuttingEntities.length} cross-cutting entities:`,
+            crossCuttingEntities.map(e => `${e.name} (${e.aspects.join(', ')})`));
+        }
+
         // Deep Research: Gap Analysis + Round 2
         if (deep && validExtractions.length > 0) {
           setLoadingStage('analyzing_gaps');
@@ -751,7 +763,12 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
               query,
               extractedData: validExtractions,
               language: 'English', // TODO: detect language
-              provider
+              provider,
+              crossCuttingEntities,
+              sourceAuthority: {
+                highAuthorityCount: allSources.filter(s => tagSourceAuthority(s.url) === 'high-authority').length,
+                unclassifiedCount: allSources.filter(s => tagSourceAuthority(s.url) === 'unclassified').length,
+              },
             }),
             signal: abortController.signal
           });
@@ -968,7 +985,12 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             stream: true,
             provider,
             deep,
-            gapDescriptions
+            gapDescriptions,
+            crossCuttingEntities,
+            sourceAuthority: {
+              highAuthorityCount: allSources.filter(s => tagSourceAuthority(s.url) === 'high-authority').length,
+              unclassifiedCount: allSources.filter(s => tagSourceAuthority(s.url) === 'unclassified').length,
+            },
           }),
           signal: abortController.signal
         });
