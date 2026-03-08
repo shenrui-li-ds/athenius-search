@@ -162,9 +162,12 @@ Extracts structured knowledge from search results for one aspect. Called in para
     "results": [{ "title": "...", "url": "...", "content": "..." }]
   },
   "globalSourceIndex": { "https://example.com": 1 },
-  "provider": "deepseek"
+  "provider": "deepseek",
+  "queryType": "finance"
 }
 ```
+
+When `queryType` is `"finance"`, the extraction prompt adds finance-specific tasks and the response includes `financialMetrics`, `valuationData`, and `riskFactors` arrays (defaulting to `[]`).
 
 **Response:**
 ```json
@@ -269,7 +272,9 @@ data: {"done": true}
   "crossCuttingEntities": [
     { "name": "Tesla", "normalizedName": "tesla", "type": "organization", "aspects": ["automotive", "energy storage"], "count": 2 }
   ],
-  "sourceAuthority": { "highAuthorityCount": 5, "unclassifiedCount": 12 }
+  "sourceAuthority": { "highAuthorityCount": 5, "unclassifiedCount": 12 },
+  "queryType": "finance",
+  "competitiveCluster": { "entities": ["NVIDIA", "AMD", "Intel"], "aspectOverlap": 2.3 }
 }
 ```
 
@@ -279,6 +284,8 @@ When `deep=true`:
 - System prompt includes multi-round integration strategy
 - Includes `<crossCuttingEntities>` XML section when entities span multiple aspects
 - Includes `<sourceAuthority>` context when authority data is available
+- When `queryType === 'finance'`: adds `<bearCaseInstruction>` for a "Risks & Contrarian View" collapsible section
+- When `competitiveCluster` is provided: adds `<competitiveComparison>` instructing comparison tables for clustered entities
 
 ### `/api/research/analyze-gaps` - Gap Analysis
 Analyzes extracted research data to identify knowledge gaps for Round 2 searches.

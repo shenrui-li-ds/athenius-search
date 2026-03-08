@@ -7,8 +7,11 @@ interface ExtractionForSummary {
   statistics?: Array<{ year?: string }>;
   expertOpinions?: unknown[];
   contradictions?: Array<{ claim1: string; claim2: string }>;
-  entities?: Array<{ normalizedName: string }>;
+  entities?: Array<{ normalizedName: string; type?: string }>;
   keyInsight?: string;
+  financialMetrics?: unknown[];
+  valuationData?: unknown[];
+  riskFactors?: unknown[];
 }
 
 interface SourceForSummary {
@@ -22,7 +25,8 @@ interface SourceForSummary {
  */
 export function compressAspectSummary(
   extraction: ExtractionForSummary,
-  sources: SourceForSummary[]
+  sources: SourceForSummary[],
+  queryType?: string
 ): CompressedAspectSummary {
   const claims = extraction.claims || [];
   const statistics = extraction.statistics || [];
@@ -72,22 +76,47 @@ export function compressAspectSummary(
   // Entity names
   const entityNames = entities.map(e => e.normalizedName);
 
+  // Finance-specific counts
+  const financialMetrics = extraction.financialMetrics || [];
+  const valuationData = extraction.valuationData || [];
+  const riskFactors = extraction.riskFactors || [];
+  const isFinance = queryType === 'finance';
+
   // Identify weak areas (max 3)
   const weakAreas: string[] = [];
-  if (expertOpinions.length === 0) {
-    weakAreas.push('No expert opinions');
-  }
-  if (highAuthority === 0 && sources.length > 0) {
-    weakAreas.push('No high-authority sources');
-  }
-  if (claims.length < 3) {
-    weakAreas.push('Few claims extracted');
-  }
-  if (statistics.length === 0) {
-    weakAreas.push('No statistics');
-  }
-  if (contradictions.length > 0 && contradictions.length > claims.length / 3) {
-    weakAreas.push('High contradiction ratio');
+
+  if (isFinance) {
+    // Finance-specific weak area checks
+    if (expertOpinions.length === 0) {
+      weakAreas.push('No analyst views');
+    }
+    if (valuationData.length === 0) {
+      weakAreas.push('No valuation data');
+    }
+    if (riskFactors.length === 0) {
+      weakAreas.push('No risk assessment');
+    }
+    const orgEntities = entities.filter(e => e.type === 'organization');
+    if (orgEntities.length <= 1) {
+      weakAreas.push('No competitive comparison');
+    }
+  } else {
+    // Generic weak area checks
+    if (expertOpinions.length === 0) {
+      weakAreas.push('No expert opinions');
+    }
+    if (highAuthority === 0 && sources.length > 0) {
+      weakAreas.push('No high-authority sources');
+    }
+    if (claims.length < 3) {
+      weakAreas.push('Few claims extracted');
+    }
+    if (statistics.length === 0) {
+      weakAreas.push('No statistics');
+    }
+    if (contradictions.length > 0 && contradictions.length > claims.length / 3) {
+      weakAreas.push('High contradiction ratio');
+    }
   }
 
   return {
@@ -102,6 +131,11 @@ export function compressAspectSummary(
     entities: entityNames,
     weakAreas: weakAreas.slice(0, 3),
     keyInsight: extraction.keyInsight || '',
+    ...(isFinance && {
+      financialMetricCount: financialMetrics.length,
+      valuationDataCount: valuationData.length,
+      riskFactorCount: riskFactors.length,
+    }),
   };
 }
 

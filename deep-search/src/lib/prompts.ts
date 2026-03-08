@@ -514,31 +514,102 @@ export const researchPlannerExplanatoryPrompt = (query: string, currentDate: str
 </researchPlannerExplanatory>
 `;
 
-// Specialized Planner: Finance
-export const researchPlannerFinancePrompt = (query: string, currentDate: string) => `
-<researchPlannerFinance>
-    <description>
-        You are a financial research expert. Plan multi-aspect research for investment topics,
-        covering fundamentals, metrics, analyst opinions, and risks.
-    </description>
-    <context>
-        <currentDate>${currentDate}</currentDate>
-        <researchTopic>${query}</researchTopic>
-    </context>
-    <aspectStrategy>
+// Finance sub-type detection (programmatic, no LLM call)
+type FinanceSubType = 'stock_analysis' | 'macro' | 'personal_finance' | 'crypto' | 'general_finance';
+
+export function detectFinanceSubType(query: string): FinanceSubType {
+  // Check most specific categories first to avoid false matches
+
+  // Crypto (check before stock — "Bitcoin ETF" should be crypto, not stock)
+  if (/bitcoin|btc\b|ethereum|eth\b|crypto|blockchain|defi\b|nft\b|staking|web3/i.test(query)) return 'crypto';
+
+  // Personal finance
+  if (/budget|savings?|retire|401k|ira\b|mortgage|debt|credit score|tax\b|roth/i.test(query)) return 'personal_finance';
+
+  // Macro
+  if (/recession|inflation|gdp|interest rate|fed\b|monetary|fiscal|economy|market outlook|treasury|yield curve/i.test(query)) return 'macro';
+
+  // Stock analysis: requires investment keywords (ticker-like patterns alone match too broadly)
+  if (/\b[A-Z]{1,5}\b/.test(query) && /stock|invest|analy|valuat|buy|sell|hold|shares|earnings|dividend/i.test(query)) return 'stock_analysis';
+  if (/stock|equity|shares|dividend|earnings|revenue|P\/E|EPS|market\s*cap/i.test(query)) return 'stock_analysis';
+
+  return 'general_finance';
+}
+
+// Specialized Planner: Finance (with sub-type-specific aspects)
+export const researchPlannerFinancePrompt = (query: string, currentDate: string) => {
+  const subType = detectFinanceSubType(query);
+
+  const aspectStrategies: Record<FinanceSubType, string> = {
+    stock_analysis: `
+        <aspect type="competitive_position">Company competitive moat, market share, key competitors, industry positioning</aspect>
+        <aspect type="valuation_context">Current valuation metrics vs historical median, peer comparison, price action</aspect>
+        <aspect type="growth_catalysts">Revenue growth drivers, upcoming catalysts, TAM expansion, new products</aspect>
+        <aspect type="risk_assessment">Risk factors, bear case arguments, regulatory threats, competitive risks</aspect>`,
+    macro: `
+        <aspect type="current_conditions">Current economic indicators, recent data releases, central bank actions</aspect>
+        <aspect type="leading_indicators">Leading economic indicators, yield curve, labor market, consumer sentiment</aspect>
+        <aspect type="sector_implications">Impact on different sectors, asset classes, investment strategies</aspect>
+        <aspect type="historical_parallels">Historical precedents, past cycles comparison, lessons learned</aspect>`,
+    personal_finance: `
+        <aspect type="strategies">Core strategies, best practices, recommended approaches</aspect>
+        <aspect type="tax_implications">Tax advantages, deductions, tax-efficient strategies</aspect>
+        <aspect type="risk_management">Risk factors, common pitfalls, protection strategies</aspect>
+        <aspect type="common_mistakes">Mistakes to avoid, misconceptions, behavioral biases</aspect>`,
+    crypto: `
+        <aspect type="technology_fundamentals">Technology overview, protocol mechanics, technical developments</aspect>
+        <aspect type="adoption_metrics">Adoption rates, user growth, institutional interest, TVL</aspect>
+        <aspect type="regulatory_landscape">Regulatory developments, legal status, compliance requirements</aspect>
+        <aspect type="risk_factors">Security risks, volatility, market manipulation, technology risks</aspect>`,
+    general_finance: `
         <aspect type="fundamentals">Company/asset overview, business model, recent news</aspect>
         <aspect type="metrics">Financial metrics, valuations, key numbers, performance data</aspect>
         <aspect type="analyst_views">Analyst ratings, price targets, expert opinions</aspect>
-        <aspect type="risks_opportunities">Risk factors, growth opportunities, bull/bear cases</aspect>
-    </aspectStrategy>
-    <rules>
-        <rule>Output 3-4 distinct search queries covering different aspects</rule>
-        <rule>Include ticker symbols, company names, or specific financial terms</rule>
-        <rule>PRESERVE the original language (Chinese query → Chinese search queries)</rule>
-        <rule>Keep each query concise: 5-12 words</rule>
-        <rule>Include year for current data (2024/2025)</rule>
-    </rules>
-    <examples>
+        <aspect type="risks_opportunities">Risk factors, growth opportunities, bull/bear cases</aspect>`,
+  };
+
+  const examples: Record<FinanceSubType, string> = {
+    stock_analysis: `
+        <example>
+            <input>NVIDIA stock analysis</input>
+            <output>[
+    {"aspect": "competitive_position", "query": "NVIDIA competitive moat market share vs AMD Intel 2025"},
+    {"aspect": "valuation_context", "query": "NVIDIA NVDA valuation PE ratio historical median 2025"},
+    {"aspect": "growth_catalysts", "query": "NVIDIA growth drivers AI data center automotive revenue"},
+    {"aspect": "risk_assessment", "query": "NVIDIA stock risks China export controls competition bear case"}
+]</output>
+        </example>`,
+    macro: `
+        <example>
+            <input>2025 recession outlook</input>
+            <output>[
+    {"aspect": "current_conditions", "query": "US economic indicators GDP growth 2025"},
+    {"aspect": "leading_indicators", "query": "recession indicators yield curve unemployment 2025"},
+    {"aspect": "sector_implications", "query": "recession impact sectors stocks bonds real estate"},
+    {"aspect": "historical_parallels", "query": "past US recessions comparison 2008 2020 patterns"}
+]</output>
+        </example>`,
+    personal_finance: `
+        <example>
+            <input>best retirement savings strategy</input>
+            <output>[
+    {"aspect": "strategies", "query": "best retirement savings strategies 401k IRA 2025"},
+    {"aspect": "tax_implications", "query": "retirement account tax advantages Roth traditional"},
+    {"aspect": "risk_management", "query": "retirement savings risk diversification age based"},
+    {"aspect": "common_mistakes", "query": "retirement planning mistakes to avoid common errors"}
+]</output>
+        </example>`,
+    crypto: `
+        <example>
+            <input>Bitcoin ETF analysis</input>
+            <output>[
+    {"aspect": "technology_fundamentals", "query": "Bitcoin ETF structure spot vs futures mechanics"},
+    {"aspect": "adoption_metrics", "query": "Bitcoin ETF inflows institutional adoption 2025"},
+    {"aspect": "regulatory_landscape", "query": "Bitcoin ETF SEC regulation approval status"},
+    {"aspect": "risk_factors", "query": "Bitcoin ETF risks volatility custody security concerns"}
+]</output>
+        </example>`,
+    general_finance: `
         <example>
             <input>NVIDIA stock analysis</input>
             <output>[
@@ -547,14 +618,36 @@ export const researchPlannerFinancePrompt = (query: string, currentDate: string)
     {"aspect": "analyst_views", "query": "NVIDIA stock analyst ratings price target 2025"},
     {"aspect": "risks_opportunities", "query": "NVIDIA stock risks competition growth opportunities"}
 ]</output>
-        </example>
+        </example>`,
+  };
+
+  return `
+<researchPlannerFinance>
+    <description>
+        You are a financial research expert. Plan multi-aspect research for investment topics,
+        covering the specific dimensions most relevant to this type of financial query.
+    </description>
+    <context>
+        <currentDate>${currentDate}</currentDate>
+        <researchTopic>${query}</researchTopic>
+    </context>
+    <aspectStrategy>${aspectStrategies[subType]}
+    </aspectStrategy>
+    <rules>
+        <rule>Output 3-4 distinct search queries covering different aspects</rule>
+        <rule>Include ticker symbols, company names, or specific financial terms</rule>
+        <rule>PRESERVE the original language (Chinese query → Chinese search queries)</rule>
+        <rule>Keep each query concise: 5-12 words</rule>
+        <rule>Include year for current data (2024/2025)</rule>
+    </rules>
+    <examples>${examples[subType]}
         <example>
             <input>比亚迪股票分析</input>
             <output>[
-    {"aspect": "fundamentals", "query": "比亚迪公司业务 新能源汽车 电池"},
-    {"aspect": "metrics", "query": "比亚迪股票估值 市盈率 营收增长 2024"},
-    {"aspect": "analyst_views", "query": "比亚迪股票分析师评级 目标价"},
-    {"aspect": "risks_opportunities", "query": "比亚迪投资风险 增长机会 竞争分析"}
+    {"aspect": "${subType === 'stock_analysis' ? 'competitive_position' : 'fundamentals'}", "query": "比亚迪公司业务 新能源汽车 电池 竞争"},
+    {"aspect": "${subType === 'stock_analysis' ? 'valuation_context' : 'metrics'}", "query": "比亚迪股票估值 市盈率 营收增长 2024"},
+    {"aspect": "${subType === 'stock_analysis' ? 'growth_catalysts' : 'analyst_views'}", "query": "比亚迪增长动力 海外扩张 新车型"},
+    {"aspect": "${subType === 'stock_analysis' ? 'risk_assessment' : 'risks_opportunities'}", "query": "比亚迪投资风险 竞争分析 政策风险"}
 ]</output>
         </example>
     </examples>
@@ -564,6 +657,958 @@ export const researchPlannerFinancePrompt = (query: string, currentDate: string)
     </output>
 </researchPlannerFinance>
 `;
+};
+
+// Finance Planner V2: Two-dimensional classification with decision tree + aspect catalog
+// LLM selects queryContext and picks aspects from a rich menu instead of fixed strategies
+export const researchPlannerFinancePromptV2 = (query: string, currentDate: string) => {
+  // currentDate is formatted like "Sunday, March 8, 2026" from getCurrentDate()
+  // Extract month and year for search query recency keywords
+  const dateObj = new Date(currentDate);
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+  const year = String(dateObj.getFullYear());
+  const monthYear = `${monthNames[dateObj.getMonth()]} ${year}`;
+  return `
+<financeResearchPlanner>
+    <description>
+        You are a financial research planning expert. Given a finance query, you:
+        1. Classify the query context (what kind of finance query)
+        2. Select 3-4 research aspects from the catalog
+        3. Generate targeted search queries for each aspect
+    </description>
+    <context>
+        <currentMonth>${monthYear}</currentMonth>
+        <researchTopic>${query}</researchTopic>
+    </context>
+
+    <step1_classify>
+        Determine queryContext by following this decision tree (check top to bottom, first match wins):
+
+        IF query mentions an ETF, index fund, or mutual fund (VOO, VTI, SPY, QQQ, ARKK, "ETF", "index fund"):
+            → queryContext = "etf_fund"
+        ELIF query mentions earnings, quarterly results, Q1/Q2/Q3/Q4, guidance, "beat", "miss", EPS estimate:
+            → queryContext = "earnings"
+        ELIF query mentions a specific company name or stock ticker:
+            → queryContext = "stock"
+        ELIF query is about an industry, sector, or market as a whole (not one specific company):
+            → queryContext = "sector"
+        ELIF query mentions recession, inflation, GDP, interest rates, Fed, monetary policy, economy, yield curve:
+            → queryContext = "macro"
+        ELIF query mentions budget, retirement, savings, 401k, IRA, mortgage, debt, credit score, personal tax:
+            → queryContext = "personal"
+        ELIF query mentions real estate, housing market, REIT, rental yield, home prices, property investment, cap rate:
+            → queryContext = "real_estate"
+        ELIF query mentions bitcoin, ethereum, crypto, blockchain, DeFi, NFT, staking, web3:
+            → queryContext = "crypto"
+        ELSE:
+            → queryContext = "general"
+    </step1_classify>
+
+    <step2_select_aspects>
+        Pick 3-4 aspects from this catalog. Prefer aspects where "Best for" matches your queryContext.
+        You MAY pick 1 aspect from an adjacent context if it adds clear value to the query.
+
+        ASPECT CATALOG:
+        ┌──────────────────────┬───────────────────────────────────────────────┬──────────────────┐
+        │ Aspect ID            │ What to search for                            │ Best for         │
+        ├──────────────────────┼───────────────────────────────────────────────┼──────────────────┤
+        │ competitive_position │ Moat, market share, key competitors           │ stock, sector    │
+        │ valuation_context    │ P/E, EV/Revenue, historical vs peer multiples │ stock            │
+        │ growth_catalysts     │ Revenue drivers, upcoming catalysts, TAM      │ stock            │
+        │ risk_assessment      │ Bear case, regulatory threats, downside risks │ stock, sector    │
+        │ consensus_estimates  │ EPS/revenue estimates, revision trends        │ earnings         │
+        │ historical_pattern   │ Beat/miss rate, post-earnings price moves     │ earnings         │
+        │ key_metrics          │ Segment KPIs investors watch (subs, ASP, etc) │ earnings         │
+        │ market_positioning   │ Options pricing, short interest, sentiment    │ earnings         │
+        │ market_sizing        │ TAM/SAM, growth rates, market segmentation    │ sector           │
+        │ competitive_dynamics │ Key players, share shifts, consolidation      │ sector           │
+        │ supply_chain         │ Dependencies, bottlenecks, geography          │ sector           │
+        │ regulatory_trends    │ Policy, trade restrictions, subsidies         │ sector, crypto   │
+        │ current_conditions   │ Economic indicators, central bank actions     │ macro            │
+        │ leading_indicators   │ Yield curve, labor market, consumer sentiment │ macro            │
+        │ sector_implications  │ Impact on sectors, asset classes, strategies  │ macro            │
+        │ historical_parallels │ Past cycles comparison, lessons learned       │ macro            │
+        │ strategies           │ Core approaches, best practices, allocation   │ personal         │
+        │ tax_implications     │ Tax advantages, deductions, efficient methods │ personal         │
+        │ risk_management      │ Risk factors, pitfalls, protection strategies │ personal         │
+        │ common_mistakes      │ Mistakes to avoid, behavioral biases          │ personal         │
+        │ technology_fundamentals │ Protocol mechanics, technical developments │ crypto           │
+        │ adoption_metrics     │ User growth, institutional interest, TVL      │ crypto           │
+        │ fund_structure       │ Expense ratio, AUM, tracking error            │ etf_fund         │
+        │ holdings_analysis    │ Top holdings, sector allocation, concentration│ etf_fund         │
+        │ performance_comparison│ Returns vs benchmark, risk-adjusted returns  │ etf_fund         │
+        │ suitability          │ Tax efficiency, dividend yield, use case      │ etf_fund         │
+        │ market_conditions    │ Prices, inventory, days on market, trends     │ real_estate      │
+        │ mortgage_financing   │ Mortgage rates, loan types, affordability     │ real_estate      │
+        │ investment_returns   │ Cap rates, rental yield, appreciation, ROI    │ real_estate      │
+        │ location_analysis    │ Neighborhood data, demographics, appreciation │ real_estate      │
+        │ fundamentals         │ Business overview, recent news, key facts     │ general          │
+        │ metrics              │ Financial numbers, performance data           │ general          │
+        │ analyst_views        │ Analyst ratings, price targets, expert opinion│ general          │
+        │ risks_opportunities  │ Risk factors, growth opportunities            │ general          │
+        └──────────────────────┴───────────────────────────────────────────────┴──────────────────┘
+
+        CONSTRAINTS:
+        - Pick exactly 3-4 aspects
+        - At least 1 aspect must be risk-related (risk_assessment, risk_management, risks_opportunities, or regulatory_trends)
+        - Prefer aspects where "Best for" matches your queryContext
+        - You may pick at most 1 aspect from a different context if it clearly adds value
+    </step2_select_aspects>
+
+    <step3_generate_queries>
+        For each selected aspect, write a search query that:
+        - Is 5-12 words long
+        - Includes specific company names, tickers, or financial terms
+        - For recency, append "${monthYear}" or just "${year}" as the LAST words of the query
+        - NEVER include the day of week or full date (e.g., "Sunday, March 8, 2026" is WRONG)
+        - PRESERVES the original language (Chinese query → Chinese search queries)
+    </step3_generate_queries>
+
+    <examples>
+        <example>
+            <input>NVIDIA stock analysis</input>
+            <reasoning>Mentions specific company → stock</reasoning>
+            <output>{"queryContext": "stock", "plan": [
+    {"aspect": "competitive_position", "query": "NVIDIA competitive moat market share vs AMD Intel ${monthYear}"},
+    {"aspect": "valuation_context", "query": "NVIDIA NVDA valuation PE ratio historical median ${monthYear}"},
+    {"aspect": "growth_catalysts", "query": "NVIDIA growth drivers AI data center automotive revenue"},
+    {"aspect": "risk_assessment", "query": "NVIDIA stock risks China export controls competition bear case"}
+]}</output>
+        </example>
+        <example>
+            <input>AAPL Q1 ${year} earnings preview</input>
+            <reasoning>Mentions company + quarterly earnings → earnings (takes priority over stock)</reasoning>
+            <output>{"queryContext": "earnings", "plan": [
+    {"aspect": "consensus_estimates", "query": "Apple AAPL Q1 ${year} earnings estimates revenue EPS consensus ${monthYear}"},
+    {"aspect": "historical_pattern", "query": "Apple earnings beat miss history post-earnings stock move"},
+    {"aspect": "key_metrics", "query": "Apple iPhone Services revenue segment KPIs Q1 ${year}"},
+    {"aspect": "risk_assessment", "query": "Apple earnings risks China demand slowdown competition ${monthYear}"}
+]}</output>
+        </example>
+        <example>
+            <input>semiconductor industry outlook ${year}</input>
+            <reasoning>About an industry, not one company → sector</reasoning>
+            <output>{"queryContext": "sector", "plan": [
+    {"aspect": "market_sizing", "query": "semiconductor industry market size growth forecast ${monthYear}"},
+    {"aspect": "competitive_dynamics", "query": "semiconductor market share TSMC Samsung Intel NVIDIA ${monthYear}"},
+    {"aspect": "supply_chain", "query": "semiconductor supply chain bottlenecks geopolitics Taiwan"},
+    {"aspect": "regulatory_trends", "query": "chip export controls CHIPS Act semiconductor policy ${monthYear}"}
+]}</output>
+        </example>
+        <example>
+            <input>${year} recession outlook</input>
+            <reasoning>Recession, economy → macro</reasoning>
+            <output>{"queryContext": "macro", "plan": [
+    {"aspect": "current_conditions", "query": "US economic indicators GDP growth unemployment ${monthYear}"},
+    {"aspect": "leading_indicators", "query": "recession indicators yield curve consumer sentiment ${monthYear}"},
+    {"aspect": "sector_implications", "query": "recession impact sectors stocks bonds real estate"},
+    {"aspect": "historical_parallels", "query": "past US recessions comparison 2008 2020 patterns"}
+]}</output>
+        </example>
+        <example>
+            <input>VOO vs VTI comparison</input>
+            <reasoning>ETF tickers → etf_fund (takes priority over stock)</reasoning>
+            <output>{"queryContext": "etf_fund", "plan": [
+    {"aspect": "fund_structure", "query": "VOO VTI expense ratio AUM tracking error comparison"},
+    {"aspect": "holdings_analysis", "query": "VOO VTI top holdings sector allocation overlap difference"},
+    {"aspect": "performance_comparison", "query": "VOO vs VTI returns performance historical comparison"},
+    {"aspect": "suitability", "query": "VOO vs VTI tax efficiency dividends which to choose"}
+]}</output>
+        </example>
+        <example>
+            <input>best retirement savings strategy</input>
+            <reasoning>Retirement, savings → personal</reasoning>
+            <output>{"queryContext": "personal", "plan": [
+    {"aspect": "strategies", "query": "best retirement savings strategies 401k IRA ${monthYear}"},
+    {"aspect": "tax_implications", "query": "retirement account tax advantages Roth traditional"},
+    {"aspect": "risk_management", "query": "retirement savings risk diversification age based"},
+    {"aspect": "common_mistakes", "query": "retirement planning mistakes to avoid common errors"}
+]}</output>
+        </example>
+        <example>
+            <input>Bitcoin ETF analysis</input>
+            <reasoning>Bitcoin + ETF → crypto (blockchain asset takes priority over fund wrapper)</reasoning>
+            <output>{"queryContext": "crypto", "plan": [
+    {"aspect": "technology_fundamentals", "query": "Bitcoin ETF structure spot vs futures mechanics"},
+    {"aspect": "adoption_metrics", "query": "Bitcoin ETF inflows institutional adoption ${monthYear}"},
+    {"aspect": "regulatory_trends", "query": "Bitcoin ETF SEC regulation approval status ${monthYear}"},
+    {"aspect": "risk_assessment", "query": "Bitcoin ETF risks volatility custody security concerns"}
+]}</output>
+        </example>
+        <example>
+            <input>比亚迪股票分析</input>
+            <reasoning>Specific company (比亚迪) → stock</reasoning>
+            <output>{"queryContext": "stock", "plan": [
+    {"aspect": "competitive_position", "query": "比亚迪公司业务 新能源汽车 电池 竞争"},
+    {"aspect": "valuation_context", "query": "比亚迪股票估值 市盈率 营收增长 ${monthYear}"},
+    {"aspect": "growth_catalysts", "query": "比亚迪增长动力 海外扩张 新车型"},
+    {"aspect": "risk_assessment", "query": "比亚迪投资风险 竞争分析 政策风险"}
+]}</output>
+        </example>
+        <example>
+            <input>housing market outlook ${year}</input>
+            <reasoning>Housing, real estate → real_estate</reasoning>
+            <output>{"queryContext": "real_estate", "plan": [
+    {"aspect": "market_conditions", "query": "US housing market prices inventory trends ${monthYear}"},
+    {"aspect": "mortgage_financing", "query": "mortgage rates forecast affordability ${monthYear}"},
+    {"aspect": "investment_returns", "query": "real estate investment returns cap rates rental yield ${year}"},
+    {"aspect": "risk_assessment", "query": "housing market risks bubble concerns correction ${monthYear}"}
+]}</output>
+        </example>
+    </examples>
+
+    <antiPatterns>
+        <bad input="TSLA Q4 ${year} earnings preview"
+             wrong='queryContext: "stock" with [competitive_position, valuation_context, growth_catalysts, risk_assessment]'
+             why="Earnings query needs consensus_estimates and historical_pattern, not generic stock aspects" />
+        <bad input="EV market competitive landscape ${year}"
+             wrong='queryContext: "stock" with [valuation_context, growth_catalysts]'
+             why="Industry/sector query, not a single company. Needs market_sizing and competitive_dynamics" />
+        <bad input="VOO vs VTI"
+             wrong='queryContext: "stock" with [competitive_position, valuation_context]'
+             why="These are index funds, not stocks. Needs fund_structure, holdings_analysis, performance_comparison" />
+    </antiPatterns>
+
+    <output>
+        <instruction>Return ONLY a valid JSON object with "queryContext" and "plan" fields</instruction>
+        <instruction>"queryContext" is REQUIRED — use "general" if no specific context fits</instruction>
+        <instruction>"plan" is an array of 3-4 objects, each with "aspect" and "query" fields</instruction>
+        <format>{"queryContext": "...", "plan": [{"aspect": "...", "query": "..."}, ...]}</format>
+    </output>
+</financeResearchPlanner>
+`;
+};
+
+// Shopping Planner V2: Two-dimensional classification
+export const researchPlannerShoppingPromptV2 = (query: string, currentDate: string) => {
+  const dateObj = new Date(currentDate);
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+  const year = String(dateObj.getFullYear());
+  const monthYear = `${monthNames[dateObj.getMonth()]} ${year}`;
+  return `
+<shoppingResearchPlanner>
+    <description>
+        You are a shopping research expert. Given a product/purchase query, you:
+        1. Classify the query context (what kind of shopping research)
+        2. Select 3-4 research aspects from the catalog
+        3. Generate targeted search queries for each aspect
+    </description>
+    <context>
+        <currentMonth>${monthYear}</currentMonth>
+        <researchTopic>${query}</researchTopic>
+    </context>
+
+    <step1_classify>
+        Determine queryContext by following this decision tree (check top to bottom, first match wins):
+
+        IF query compares specific products side by side ("X vs Y", "X or Y", "X compared to Y"):
+            → queryContext = "comparison"
+        ELIF query asks about one specific product ("is X worth it", "X review", "should I buy X"):
+            → queryContext = "single_product"
+        ELIF query focuses on price, deals, budget ("under $X", "cheap", "affordable", "best value"):
+            → queryContext = "budget"
+        ELIF query is about building a kit, system, or setup ("setup", "kit", "accessories for", "what do I need"):
+            → queryContext = "gear_setup"
+        ELIF query asks for recommendations ("best X for Y", "top X", "recommend"):
+            → queryContext = "product_search"
+        ELSE:
+            → queryContext = "general"
+    </step1_classify>
+
+    <step2_select_aspects>
+        Pick 3-4 aspects from this catalog. Prefer aspects where "Best for" matches your queryContext.
+        You MAY pick 1 aspect from an adjacent context if it adds clear value.
+
+        ASPECT CATALOG:
+        ┌──────────────────────┬─────────────────────────────────────────────┬───────────────────────────┐
+        │ Aspect ID            │ What to search for                          │ Best for                  │
+        ├──────────────────────┼─────────────────────────────────────────────┼───────────────────────────┤
+        │ product_discovery    │ Top products matching criteria, latest picks│ product_search            │
+        │ feature_comparison   │ Specs, pros/cons, side-by-side comparison   │ comparison                │
+        │ expert_reviews       │ Professional reviews from trusted sources   │ product_search, comparison│
+        │ user_experiences     │ Reddit, forums, long-term ownership reports │ product_search, single    │
+        │ price_value          │ Price ranges, deals, cost-per-feature       │ budget                    │
+        │ alternatives         │ Lesser-known options, underrated picks      │ product_search, budget    │
+        │ durability_longevity │ Build quality, warranty, lifespan reports   │ single_product            │
+        │ accessories_ecosystem│ Compatible gear, system integration         │ gear_setup                │
+        └──────────────────────┴─────────────────────────────────────────────┴───────────────────────────┘
+
+        CONSTRAINTS:
+        - Pick exactly 3-4 aspects
+        - At least 1 aspect must include real user feedback (user_experiences or expert_reviews)
+        - Prefer aspects where "Best for" matches your queryContext
+    </step2_select_aspects>
+
+    <step3_generate_queries>
+        For each selected aspect, write a search query that:
+        - Is 5-12 words long
+        - Includes specific product names, brands, or model numbers when relevant
+        - Includes "${monthYear}" or "${year}" for recency — NEVER include full date or day of week
+        - PRESERVES the original language (Chinese query → Chinese search queries)
+    </step3_generate_queries>
+
+    <examples>
+        <example>
+            <input>best hiking camera bag 30L</input>
+            <reasoning>Asking for recommendations → product_search</reasoning>
+            <output>{"queryContext": "product_search", "plan": [
+    {"aspect": "product_discovery", "query": "best 30L hiking camera backpacks ${monthYear}"},
+    {"aspect": "feature_comparison", "query": "hiking camera bag comparison features waist belt support"},
+    {"aspect": "expert_reviews", "query": "Shimoda Lowepro Peak Design camera backpack review ${year}"},
+    {"aspect": "user_experiences", "query": "hiking photography backpack reddit user reviews long term"}
+]}</output>
+        </example>
+        <example>
+            <input>iPhone 17 Pro vs Samsung S26 Ultra</input>
+            <reasoning>Comparing two specific products → comparison</reasoning>
+            <output>{"queryContext": "comparison", "plan": [
+    {"aspect": "feature_comparison", "query": "iPhone 17 Pro vs Samsung S26 Ultra specs comparison ${monthYear}"},
+    {"aspect": "expert_reviews", "query": "iPhone 17 Pro Samsung S26 Ultra in-depth review ${year}"},
+    {"aspect": "user_experiences", "query": "iPhone 17 Pro vs Samsung S26 real world experience reddit"},
+    {"aspect": "price_value", "query": "iPhone 17 Pro Samsung S26 Ultra price value deals ${monthYear}"}
+]}</output>
+        </example>
+        <example>
+            <input>is the Sony WH-1000XM6 worth it</input>
+            <reasoning>Asking about one specific product → single_product</reasoning>
+            <output>{"queryContext": "single_product", "plan": [
+    {"aspect": "expert_reviews", "query": "Sony WH-1000XM6 review sound quality noise canceling ${year}"},
+    {"aspect": "user_experiences", "query": "Sony WH-1000XM6 long term review reddit comfort durability"},
+    {"aspect": "durability_longevity", "query": "Sony WH-1000XM6 build quality issues reliability"},
+    {"aspect": "alternatives", "query": "Sony WH-1000XM6 vs Bose QC Ultra Apple AirPods Max ${year}"}
+]}</output>
+        </example>
+        <example>
+            <input>推荐几款性价比高的机械键盘</input>
+            <reasoning>Asking for recommendations with value focus → product_search (budget adjacent)</reasoning>
+            <output>{"queryContext": "product_search", "plan": [
+    {"aspect": "product_discovery", "query": "性价比机械键盘推荐 ${monthYear}"},
+    {"aspect": "feature_comparison", "query": "机械键盘轴体对比 红轴青轴茶轴 手感"},
+    {"aspect": "price_value", "query": "百元机械键盘推荐 高性价比 ${year}"},
+    {"aspect": "user_experiences", "query": "机械键盘使用体验 长期评测 推荐"}
+]}</output>
+        </example>
+    </examples>
+
+    <antiPatterns>
+        <bad input="best budget laptop under $500"
+             wrong='queryContext: "product_search" with [product_discovery, expert_reviews, user_experiences, durability_longevity]'
+             why="Budget query should include price_value aspect, not durability" />
+    </antiPatterns>
+
+    <output>
+        <instruction>Return ONLY a valid JSON object with "queryContext" and "plan" fields</instruction>
+        <instruction>"queryContext" is REQUIRED — use "general" if no specific context fits</instruction>
+        <instruction>"plan" is an array of 3-4 objects, each with "aspect" and "query" fields</instruction>
+        <format>{"queryContext": "...", "plan": [{"aspect": "...", "query": "..."}, ...]}</format>
+    </output>
+</shoppingResearchPlanner>
+`;
+};
+
+// Travel Planner V2: Two-dimensional classification
+export const researchPlannerTravelPromptV2 = (query: string, currentDate: string) => {
+  const dateObj = new Date(currentDate);
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+  const year = String(dateObj.getFullYear());
+  const monthYear = `${monthNames[dateObj.getMonth()]} ${year}`;
+  return `
+<travelResearchPlanner>
+    <description>
+        You are a travel research expert. Given a travel query, you:
+        1. Classify the query context (what kind of travel research)
+        2. Select 3-4 research aspects from the catalog
+        3. Generate targeted search queries for each aspect
+    </description>
+    <context>
+        <currentMonth>${monthYear}</currentMonth>
+        <researchTopic>${query}</researchTopic>
+    </context>
+
+    <step1_classify>
+        Determine queryContext by following this decision tree (check top to bottom, first match wins):
+
+        IF query is about visa, passport, entry requirements, immigration, documents:
+            → queryContext = "logistics"
+        ELIF query asks for multi-day plan, itinerary, schedule, "X days in Y":
+            → queryContext = "itinerary"
+        ELIF query focuses on food, restaurants, cuisine, local dishes, food tour:
+            → queryContext = "food_culture"
+        ELIF query focuses on outdoor activities, hiking, diving, adventure sports:
+            → queryContext = "adventure"
+        ELIF query asks "things to do", general destination exploration, first-time visit:
+            → queryContext = "destination_overview"
+        ELSE:
+            → queryContext = "general"
+    </step1_classify>
+
+    <step2_select_aspects>
+        Pick 3-4 aspects from this catalog. Prefer aspects where "Best for" matches your queryContext.
+        You MAY pick 1 aspect from an adjacent context if it adds clear value.
+
+        ASPECT CATALOG:
+        ┌──────────────────────┬─────────────────────────────────────────────┬────────────────────────────────┐
+        │ Aspect ID            │ What to search for                          │ Best for                       │
+        ├──────────────────────┼─────────────────────────────────────────────┼────────────────────────────────┤
+        │ top_attractions      │ Must-see sights, landmarks, popular spots   │ destination_overview           │
+        │ activities           │ Tours, excursions, unique experiences       │ destination_overview, adventure│
+        │ accommodations       │ Hotels, resorts, areas to stay, budget tips │ destination_overview, itinerary│
+        │ practical_logistics  │ Transport, visa, safety, costs, getting around│ logistics, itinerary         │
+        │ food_dining          │ Local cuisine, restaurants, food markets    │ food_culture                   │
+        │ cultural_insights    │ Customs, etiquette, local traditions        │ food_culture                   │
+        │ seasonal_timing      │ Best months, weather, crowds, events        │ destination_overview           │
+        │ day_by_day_plan      │ Sample itineraries, route optimization      │ itinerary                      │
+        │ outdoor_adventure    │ Hiking, diving, sports, nature activities   │ adventure                      │
+        │ hidden_gems          │ Off-the-beaten-path spots, local secrets    │ adventure                      │
+        └──────────────────────┴─────────────────────────────────────────────┴────────────────────────────────┘
+
+        CONSTRAINTS:
+        - Pick exactly 3-4 aspects
+        - At least 1 aspect must include practical/logistics info (practical_logistics, accommodations, or seasonal_timing)
+        - Prefer aspects where "Best for" matches your queryContext
+    </step2_select_aspects>
+
+    <step3_generate_queries>
+        For each selected aspect, write a search query that:
+        - Is 5-12 words long
+        - Includes the destination name in each query
+        - Includes "${monthYear}" or "${year}" for recency — NEVER include full date or day of week
+        - PRESERVES the original language (Chinese query → Chinese search queries)
+    </step3_generate_queries>
+
+    <examples>
+        <example>
+            <input>Japan visa requirements for US citizens</input>
+            <reasoning>Visa, entry requirements → logistics</reasoning>
+            <output>{"queryContext": "logistics", "plan": [
+    {"aspect": "practical_logistics", "query": "Japan visa requirements US citizens ${monthYear}"},
+    {"aspect": "practical_logistics", "query": "Japan entry requirements documents needed ${year}"},
+    {"aspect": "seasonal_timing", "query": "best time to visit Japan weather crowds ${year}"},
+    {"aspect": "accommodations", "query": "Japan first time visitor accommodation tips areas to stay"}
+]}</output>
+        </example>
+        <example>
+            <input>5 days in Barcelona itinerary</input>
+            <reasoning>Multi-day plan → itinerary</reasoning>
+            <output>{"queryContext": "itinerary", "plan": [
+    {"aspect": "day_by_day_plan", "query": "Barcelona 5 day itinerary sample schedule ${year}"},
+    {"aspect": "top_attractions", "query": "Barcelona must see sights Sagrada Familia Gothic Quarter"},
+    {"aspect": "practical_logistics", "query": "Barcelona transportation metro pass getting around tips"},
+    {"aspect": "food_dining", "query": "Barcelona best restaurants tapas bars local food guide"}
+]}</output>
+        </example>
+        <example>
+            <input>best street food in Bangkok</input>
+            <reasoning>Food focus → food_culture</reasoning>
+            <output>{"queryContext": "food_culture", "plan": [
+    {"aspect": "food_dining", "query": "Bangkok best street food stalls dishes must try ${year}"},
+    {"aspect": "cultural_insights", "query": "Bangkok food culture etiquette local dining customs"},
+    {"aspect": "hidden_gems", "query": "Bangkok hidden street food spots locals favorite"},
+    {"aspect": "practical_logistics", "query": "Bangkok street food safety tips areas neighborhoods"}
+]}</output>
+        </example>
+        <example>
+            <input>科苏梅尔有什么好玩的</input>
+            <reasoning>General "things to do" → destination_overview</reasoning>
+            <output>{"queryContext": "destination_overview", "plan": [
+    {"aspect": "top_attractions", "query": "科苏梅尔必去景点推荐"},
+    {"aspect": "activities", "query": "科苏梅尔潜水浮潜水上活动"},
+    {"aspect": "accommodations", "query": "科苏梅尔最佳海滩度假村酒店"},
+    {"aspect": "practical_logistics", "query": "科苏梅尔旅游攻略交通美食"}
+]}</output>
+        </example>
+    </examples>
+
+    <antiPatterns>
+        <bad input="Japan visa requirements for US citizens"
+             wrong='queryContext: "destination_overview" with [top_attractions, activities, accommodations, practical_logistics]'
+             why="Visa query needs logistics focus, not tourism attractions" />
+    </antiPatterns>
+
+    <output>
+        <instruction>Return ONLY a valid JSON object with "queryContext" and "plan" fields</instruction>
+        <instruction>"queryContext" is REQUIRED — use "general" if no specific context fits</instruction>
+        <instruction>"plan" is an array of 3-4 objects, each with "aspect" and "query" fields</instruction>
+        <format>{"queryContext": "...", "plan": [{"aspect": "...", "query": "..."}, ...]}</format>
+    </output>
+</travelResearchPlanner>
+`;
+};
+
+// Technical Planner V2: Two-dimensional classification
+export const researchPlannerTechnicalPromptV2 = (query: string, currentDate: string) => {
+  const dateObj = new Date(currentDate);
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+  const year = String(dateObj.getFullYear());
+  const monthYear = `${monthNames[dateObj.getMonth()]} ${year}`;
+  return `
+<technicalResearchPlanner>
+    <description>
+        You are a technical research expert. Given a technical query, you:
+        1. Classify the query context (what kind of technical research)
+        2. Select 3-4 research aspects from the catalog
+        3. Generate targeted search queries for each aspect
+    </description>
+    <context>
+        <currentMonth>${monthYear}</currentMonth>
+        <researchTopic>${query}</researchTopic>
+    </context>
+
+    <step1_classify>
+        Determine queryContext by following this decision tree (check top to bottom, first match wins):
+
+        IF query is about fixing an error, debugging, "not working", troubleshooting:
+            → queryContext = "troubleshooting"
+        ELIF query asks about setup, installation, configuration, "how to install", "getting started":
+            → queryContext = "setup_config"
+        ELIF query asks about system design, architecture, internals, "how is X built":
+            → queryContext = "architecture"
+        ELIF query compares technologies or products ("X vs Y", benchmarks, specs comparison):
+            → queryContext = "spec_comparison"
+        ELSE:
+            → queryContext = "general"
+    </step1_classify>
+
+    <step2_select_aspects>
+        Pick 3-4 aspects from this catalog. Prefer aspects where "Best for" matches your queryContext.
+        You MAY pick 1 aspect from an adjacent context if it adds clear value.
+
+        ASPECT CATALOG:
+        ┌──────────────────────┬─────────────────────────────────────────────┬──────────────────────────────┐
+        │ Aspect ID            │ What to search for                          │ Best for                     │
+        ├──────────────────────┼─────────────────────────────────────────────┼──────────────────────────────┤
+        │ specifications       │ Detailed specs, official data, parameters   │ spec_comparison              │
+        │ benchmarks           │ Performance tests, quantitative comparisons │ spec_comparison              │
+        │ expert_analysis      │ In-depth reviews from authoritative sources │ spec_comparison, architecture│
+        │ architecture_design  │ System design, internals, how it's built    │ architecture                 │
+        │ real_world           │ User testing, field reports, production use │ spec_comparison              │
+        │ setup_guide          │ Installation, configuration, getting started│ setup_config                 │
+        │ troubleshooting_fixes│ Common issues, solutions, debugging steps   │ troubleshooting              │
+        │ alternatives         │ Competing solutions, trade-offs analysis    │ spec_comparison, architecture│
+        └──────────────────────┴─────────────────────────────────────────────┴──────────────────────────────┘
+
+        CONSTRAINTS:
+        - Pick exactly 3-4 aspects
+        - At least 1 aspect must include real-world data (real_world, benchmarks, or expert_analysis)
+        - Prefer aspects where "Best for" matches your queryContext
+    </step2_select_aspects>
+
+    <step3_generate_queries>
+        For each selected aspect, write a search query that:
+        - Is 5-12 words long
+        - Includes specific model numbers, versions, or technical parameters
+        - Includes "${monthYear}" or "${year}" for recency — NEVER include full date or day of week
+        - PRESERVES the original language (Chinese query → Chinese search queries)
+    </step3_generate_queries>
+
+    <examples>
+        <example>
+            <input>Rust vs Go for microservices</input>
+            <reasoning>Comparing two technologies → spec_comparison</reasoning>
+            <output>{"queryContext": "spec_comparison", "plan": [
+    {"aspect": "specifications", "query": "Rust vs Go language features concurrency memory model comparison"},
+    {"aspect": "benchmarks", "query": "Rust vs Go microservices performance benchmarks latency ${year}"},
+    {"aspect": "real_world", "query": "Rust vs Go microservices production experience companies ${year}"},
+    {"aspect": "alternatives", "query": "microservices language comparison Rust Go Java Kotlin trade-offs"}
+]}</output>
+        </example>
+        <example>
+            <input>Docker container won't start permission denied</input>
+            <reasoning>Fixing an error → troubleshooting</reasoning>
+            <output>{"queryContext": "troubleshooting", "plan": [
+    {"aspect": "troubleshooting_fixes", "query": "Docker container permission denied error fix solutions"},
+    {"aspect": "troubleshooting_fixes", "query": "Docker file permissions volume mount user namespace"},
+    {"aspect": "expert_analysis", "query": "Docker security permissions best practices rootless containers"},
+    {"aspect": "setup_guide", "query": "Docker permissions configuration Linux user groups setup"}
+]}</output>
+        </example>
+        <example>
+            <input>how React server components work internally</input>
+            <reasoning>Asking about internals, architecture → architecture</reasoning>
+            <output>{"queryContext": "architecture", "plan": [
+    {"aspect": "architecture_design", "query": "React server components architecture internals RSC protocol"},
+    {"aspect": "expert_analysis", "query": "React server components deep dive technical analysis ${year}"},
+    {"aspect": "real_world", "query": "React server components production experience performance impact"},
+    {"aspect": "alternatives", "query": "React server components vs Astro islands vs Qwik comparison"}
+]}</output>
+        </example>
+        <example>
+            <input>M4 MacBook Pro vs M3 性能对比</input>
+            <reasoning>Comparing two products → spec_comparison</reasoning>
+            <output>{"queryContext": "spec_comparison", "plan": [
+    {"aspect": "specifications", "query": "M4 MacBook Pro 规格参数详细对比 M3"},
+    {"aspect": "benchmarks", "query": "M4 vs M3 芯片性能跑分对比测试 ${year}"},
+    {"aspect": "expert_analysis", "query": "M4 MacBook Pro 深度评测 专业分析 ${year}"},
+    {"aspect": "real_world", "query": "M4 MacBook Pro 实际使用体验 视频剪辑 开发"}
+]}</output>
+        </example>
+    </examples>
+
+    <antiPatterns>
+        <bad input="Docker container won't start"
+             wrong='queryContext: "spec_comparison" with [specifications, benchmarks, expert_analysis, real_world]'
+             why="This is a troubleshooting query, not a comparison. Needs troubleshooting_fixes and setup_guide" />
+    </antiPatterns>
+
+    <output>
+        <instruction>Return ONLY a valid JSON object with "queryContext" and "plan" fields</instruction>
+        <instruction>"queryContext" is REQUIRED — use "general" if no specific context fits</instruction>
+        <instruction>"plan" is an array of 3-4 objects, each with "aspect" and "query" fields</instruction>
+        <format>{"queryContext": "...", "plan": [{"aspect": "...", "query": "..."}, ...]}</format>
+    </output>
+</technicalResearchPlanner>
+`;
+};
+
+// Academic Planner V2: Two-dimensional classification
+export const researchPlannerAcademicPromptV2 = (query: string, currentDate: string) => {
+  const dateObj = new Date(currentDate);
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+  const year = String(dateObj.getFullYear());
+  const monthYear = `${monthNames[dateObj.getMonth()]} ${year}`;
+  return `
+<academicResearchPlanner>
+    <description>
+        You are an academic research expert. Given a scholarly query, you:
+        1. Classify the query context (what kind of academic research)
+        2. Select 3-4 research aspects from the catalog
+        3. Generate targeted search queries for each aspect
+    </description>
+    <context>
+        <currentMonth>${monthYear}</currentMonth>
+        <researchTopic>${query}</researchTopic>
+    </context>
+
+    <step1_classify>
+        Determine queryContext by following this decision tree (check top to bottom, first match wins):
+
+        IF query asks about research methods, experimental design, "how to study", methodology:
+            → queryContext = "methodology"
+        ELIF query asks about theory, proof, model, formal framework, mathematical:
+            → queryContext = "theoretical"
+        ELIF query focuses on data, experiments, results, measurements, clinical trials:
+            → queryContext = "empirical"
+        ELIF query spans multiple fields ("X in Y domain", applications of X in Y):
+            → queryContext = "interdisciplinary"
+        ELIF query asks for survey, overview, "state of the art", review of research:
+            → queryContext = "literature_review"
+        ELSE:
+            → queryContext = "general"
+    </step1_classify>
+
+    <step2_select_aspects>
+        Pick 3-4 aspects from this catalog. Prefer aspects where "Best for" matches your queryContext.
+        You MAY pick 1 aspect from an adjacent context if it adds clear value.
+
+        ASPECT CATALOG:
+        ┌─────────────────────┬───────────────────────────────────────────────────┬───────────────────────────────┐
+        │ Aspect ID           │ What to search for                                │ Best for                      │
+        ├─────────────────────┼───────────────────────────────────────────────────┼───────────────────────────────┤
+        │ foundations         │ Core concepts, definitions, theoretical background│ literature_review, theoretical│
+        │ key_findings        │ Major results, landmark studies, evidence         │ literature_review, empirical  │
+        │ methodology         │ Research methods, experimental design             │ methodology                   │
+        │ current_debates     │ Open questions, controversies, recent work        │ literature_review             │
+        │ data_evidence       │ Datasets, empirical results, statistical data     │ empirical                     │
+        │ theoretical_models  │ Formal models, proofs, mathematical frameworks    │ theoretical                   │
+        │ cross_domain        │ Applications in other fields, interdisciplinary   │ interdisciplinary             │
+        │ future_directions   │ Research gaps, emerging areas, next steps         │ literature_review             │
+        └─────────────────────┴───────────────────────────────────────────────────┴───────────────────────────────┘
+
+        CONSTRAINTS:
+        - Pick exactly 3-4 aspects
+        - At least 1 aspect must be foundations or key_findings (ground the research)
+        - Use academic/scholarly language in queries (include "research", "study", "review")
+    </step2_select_aspects>
+
+    <step3_generate_queries>
+        For each selected aspect, write a search query that:
+        - Is 5-12 words long
+        - Uses academic/scholarly language to target scholarly content
+        - Includes "${monthYear}" or "${year}" for recency — NEVER include full date or day of week
+        - PRESERVES the original language (Chinese query → Chinese search queries)
+    </step3_generate_queries>
+
+    <examples>
+        <example>
+            <input>CRISPR gene editing ethics and applications</input>
+            <reasoning>Spans biology + ethics → interdisciplinary</reasoning>
+            <output>{"queryContext": "interdisciplinary", "plan": [
+    {"aspect": "foundations", "query": "CRISPR Cas9 gene editing mechanism biology review"},
+    {"aspect": "cross_domain", "query": "CRISPR applications medicine agriculture therapeutics ${year}"},
+    {"aspect": "current_debates", "query": "CRISPR gene editing ethical concerns debate germline ${year}"},
+    {"aspect": "key_findings", "query": "CRISPR clinical trials results breakthroughs ${monthYear}"}
+]}</output>
+        </example>
+        <example>
+            <input>transformer architecture in NLP research</input>
+            <reasoning>Asking about architecture/theory → theoretical</reasoning>
+            <output>{"queryContext": "theoretical", "plan": [
+    {"aspect": "foundations", "query": "transformer architecture attention mechanism explained"},
+    {"aspect": "theoretical_models", "query": "transformer variants architectures survey BERT GPT ${year}"},
+    {"aspect": "key_findings", "query": "transformer NLP benchmark results state of art ${year}"},
+    {"aspect": "future_directions", "query": "transformer research limitations future directions ${monthYear}"}
+]}</output>
+        </example>
+        <example>
+            <input>深度学习在医学影像中的应用研究</input>
+            <reasoning>Cross-domain application → interdisciplinary</reasoning>
+            <output>{"queryContext": "interdisciplinary", "plan": [
+    {"aspect": "foundations", "query": "深度学习医学影像基础原理综述"},
+    {"aspect": "key_findings", "query": "AI医学影像诊断研究成果准确率 ${year}"},
+    {"aspect": "methodology", "query": "医学影像深度学习模型训练方法数据集"},
+    {"aspect": "current_debates", "query": "AI医学诊断挑战局限性伦理问题 ${year}"}
+]}</output>
+        </example>
+    </examples>
+
+    <output>
+        <instruction>Return ONLY a valid JSON object with "queryContext" and "plan" fields</instruction>
+        <instruction>"queryContext" is REQUIRED — use "general" if no specific context fits</instruction>
+        <instruction>"plan" is an array of 3-4 objects, each with "aspect" and "query" fields</instruction>
+        <format>{"queryContext": "...", "plan": [{"aspect": "...", "query": "..."}, ...]}</format>
+    </output>
+</academicResearchPlanner>
+`;
+};
+
+// Explanatory Planner V2: Two-dimensional classification
+export const researchPlannerExplanatoryPromptV2 = (query: string, currentDate: string) => {
+  const dateObj = new Date(currentDate);
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+  const year = String(dateObj.getFullYear());
+  const monthYear = `${monthNames[dateObj.getMonth()]} ${year}`;
+  return `
+<explanatoryResearchPlanner>
+    <description>
+        You are an educational content expert. Given a "how/what/why" query, you:
+        1. Classify the query context (what kind of explanation is needed)
+        2. Select 3-4 research aspects from the catalog
+        3. Generate targeted search queries for each aspect
+    </description>
+    <context>
+        <currentMonth>${monthYear}</currentMonth>
+        <researchTopic>${query}</researchTopic>
+    </context>
+
+    <step1_classify>
+        Determine queryContext by following this decision tree (check top to bottom, first match wins):
+
+        IF query compares or contrasts concepts ("X vs Y explained", "difference between X and Y"):
+            → queryContext = "comparison_explainer"
+        ELIF query asks "how to", tutorial, step-by-step guide, implementation:
+            → queryContext = "practical_guide"
+        ELIF query asks about history, evolution, "how did X develop", origins:
+            → queryContext = "history_evolution"
+        ELIF query asks "how does X work", mechanism, process, "what happens when":
+            → queryContext = "how_it_works"
+        ELSE:
+            → queryContext = "general"
+    </step1_classify>
+
+    <step2_select_aspects>
+        Pick 3-4 aspects from this catalog. Prefer aspects where "Best for" matches your queryContext.
+        You MAY pick 1 aspect from an adjacent context if it adds clear value.
+
+        ASPECT CATALOG:
+        ┌──────────────────────┬─────────────────────────────────────────────┬──────────────────────────┐
+        │ Aspect ID            │ What to search for                          │ Best for                 │
+        ├──────────────────────┼─────────────────────────────────────────────┼──────────────────────────┤
+        │ definition_overview  │ What it is, core definition, key terms      │ how_it_works, comparison │
+        │ mechanism_process    │ How it works, step-by-step, underlying logic│ how_it_works             │
+        │ examples_applications│ Real-world examples, use cases, demos       │ how_it_works, practical  │
+        │ misconceptions       │ Common mistakes, myths, things people wrong │ how_it_works             │
+        │ comparison_contrasts │ Key differences, when to use which          │ comparison_explainer     │
+        │ history_context      │ How it evolved, historical context, origins │ history_evolution        │
+        │ practical_howto      │ Step-by-step guide, tutorial, implementation│ practical_guide          │
+        │ advanced_nuances     │ Edge cases, deeper details, expert level    │ how_it_works             │
+        └──────────────────────┴─────────────────────────────────────────────┴──────────────────────────┘
+
+        CONSTRAINTS:
+        - Pick exactly 3-4 aspects
+        - At least 1 aspect must be definition_overview or mechanism_process (ground the explanation)
+        - Target beginner-friendly explanations unless query is clearly advanced
+    </step2_select_aspects>
+
+    <step3_generate_queries>
+        For each selected aspect, write a search query that:
+        - Is 5-12 words long
+        - Uses educational/tutorial-oriented language
+        - Includes "${monthYear}" or "${year}" for recency — NEVER include full date or day of week
+        - PRESERVES the original language (Chinese query → Chinese search queries)
+    </step3_generate_queries>
+
+    <examples>
+        <example>
+            <input>how does HTTPS encryption work</input>
+            <reasoning>Asking how something works → how_it_works</reasoning>
+            <output>{"queryContext": "how_it_works", "plan": [
+    {"aspect": "definition_overview", "query": "what is HTTPS SSL TLS encryption explained simply"},
+    {"aspect": "mechanism_process", "query": "how HTTPS handshake works step by step diagram"},
+    {"aspect": "examples_applications", "query": "HTTPS encryption real world examples websites security"},
+    {"aspect": "misconceptions", "query": "HTTPS security myths common misconceptions debunked"}
+]}</output>
+        </example>
+        <example>
+            <input>difference between TCP and UDP</input>
+            <reasoning>Comparing two concepts → comparison_explainer</reasoning>
+            <output>{"queryContext": "comparison_explainer", "plan": [
+    {"aspect": "definition_overview", "query": "TCP and UDP protocols definition basics explained"},
+    {"aspect": "comparison_contrasts", "query": "TCP vs UDP differences when to use which comparison"},
+    {"aspect": "examples_applications", "query": "TCP UDP real world use cases gaming streaming web"},
+    {"aspect": "mechanism_process", "query": "TCP three way handshake UDP connectionless how works"}
+]}</output>
+        </example>
+        <example>
+            <input>how to set up a home NAS server</input>
+            <reasoning>Step-by-step how-to → practical_guide</reasoning>
+            <output>{"queryContext": "practical_guide", "plan": [
+    {"aspect": "definition_overview", "query": "what is NAS server home use benefits explained"},
+    {"aspect": "practical_howto", "query": "how to set up home NAS server step by step guide ${year}"},
+    {"aspect": "examples_applications", "query": "best NAS hardware Synology QNAP home setup ${year}"},
+    {"aspect": "advanced_nuances", "query": "NAS RAID configuration backup strategy best practices"}
+]}</output>
+        </example>
+        <example>
+            <input>机器学习是什么</input>
+            <reasoning>Asking what something is → how_it_works</reasoning>
+            <output>{"queryContext": "how_it_works", "plan": [
+    {"aspect": "definition_overview", "query": "机器学习是什么 定义 基本概念"},
+    {"aspect": "mechanism_process", "query": "机器学习如何工作 原理详解"},
+    {"aspect": "examples_applications", "query": "机器学习实际应用例子 日常生活"},
+    {"aspect": "misconceptions", "query": "机器学习常见误解 AI区别"}
+]}</output>
+        </example>
+    </examples>
+
+    <antiPatterns>
+        <bad input="how to set up Docker on Ubuntu"
+             wrong='queryContext: "how_it_works" with [definition_overview, mechanism_process, examples_applications, misconceptions]'
+             why="This is a practical setup guide, not a conceptual explanation. Needs practical_howto" />
+    </antiPatterns>
+
+    <output>
+        <instruction>Return ONLY a valid JSON object with "queryContext" and "plan" fields</instruction>
+        <instruction>"queryContext" is REQUIRED — use "general" if no specific context fits</instruction>
+        <instruction>"plan" is an array of 3-4 objects, each with "aspect" and "query" fields</instruction>
+        <format>{"queryContext": "...", "plan": [{"aspect": "...", "query": "..."}, ...]}</format>
+    </output>
+</explanatoryResearchPlanner>
+`;
+};
+
+// General Planner V2: Two-dimensional classification
+export const researchPlannerGeneralPromptV2 = (query: string, currentDate: string) => {
+  const dateObj = new Date(currentDate);
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'];
+  const year = String(dateObj.getFullYear());
+  const monthYear = `${monthNames[dateObj.getMonth()]} ${year}`;
+  return `
+<generalResearchPlanner>
+    <description>
+        You are a research planning expert. Given a general knowledge query, you:
+        1. Classify the query context (what kind of information is needed)
+        2. Select 3-4 research aspects from the catalog
+        3. Generate targeted search queries for each aspect
+    </description>
+    <context>
+        <currentMonth>${monthYear}</currentMonth>
+        <researchTopic>${query}</researchTopic>
+    </context>
+
+    <step1_classify>
+        Determine queryContext by following this decision tree (check top to bottom, first match wins):
+
+        IF query is about a person (biography, career, achievements, "who is"):
+            → queryContext = "people"
+        ELIF query is about a historical event, era, or past analysis:
+            → queryContext = "historical"
+        ELIF query is about current events, breaking news, recent developments:
+            → queryContext = "news_events"
+        ELIF query is about cultural topics, social issues, arts, society:
+            → queryContext = "culture_society"
+        ELSE:
+            → queryContext = "general"
+    </step1_classify>
+
+    <step2_select_aspects>
+        Pick 3-4 aspects from this catalog. Prefer aspects where "Best for" matches your queryContext.
+        You MAY pick 1 aspect from an adjacent context if it adds clear value.
+
+        ASPECT CATALOG:
+        ┌──────────────────────┬─────────────────────────────────────────────┬──────────────────────────┐
+        │ Aspect ID            │ What to search for                          │ Best for                 │
+        ├──────────────────────┼─────────────────────────────────────────────┼──────────────────────────┤
+        │ overview_facts       │ Core facts, summary, key information        │ general, people          │
+        │ recent_developments  │ Latest news, recent changes, current state  │ news_events              │
+        │ context_background   │ Historical context, why it matters          │ historical, culture      │
+        │ perspectives         │ Different viewpoints, expert analysis       │ news_events, culture     │
+        │ impact_implications  │ Effects, consequences, what it means        │ news_events, general     │
+        │ timeline_chronology  │ Key dates, sequence of events, milestones   │ historical, people       │
+        └──────────────────────┴─────────────────────────────────────────────┴──────────────────────────┘
+
+        CONSTRAINTS:
+        - Pick exactly 3-4 aspects
+        - At least 1 aspect must be overview_facts or context_background (ground the research)
+        - Prefer aspects where "Best for" matches your queryContext
+    </step2_select_aspects>
+
+    <step3_generate_queries>
+        For each selected aspect, write a search query that:
+        - Is 5-12 words long
+        - Includes specific names, events, or topics
+        - Includes "${monthYear}" or "${year}" for recency when relevant — NEVER include full date or day of week
+        - PRESERVES the original language (Chinese query → Chinese search queries)
+    </step3_generate_queries>
+
+    <examples>
+        <example>
+            <input>history of the Roman Empire</input>
+            <reasoning>Historical event/era → historical</reasoning>
+            <output>{"queryContext": "historical", "plan": [
+    {"aspect": "overview_facts", "query": "Roman Empire overview rise and fall key facts"},
+    {"aspect": "timeline_chronology", "query": "Roman Empire timeline key dates major events periods"},
+    {"aspect": "context_background", "query": "Roman Empire cultural achievements legacy influence"},
+    {"aspect": "perspectives", "query": "modern historians Roman Empire analysis debate interpretation"}
+]}</output>
+        </example>
+        <example>
+            <input>what happened at CES ${year}</input>
+            <reasoning>Current event → news_events</reasoning>
+            <output>{"queryContext": "news_events", "plan": [
+    {"aspect": "overview_facts", "query": "CES ${year} highlights major announcements summary"},
+    {"aspect": "recent_developments", "query": "CES ${year} biggest product launches innovations ${monthYear}"},
+    {"aspect": "perspectives", "query": "CES ${year} analysis expert opinions tech trends"},
+    {"aspect": "impact_implications", "query": "CES ${year} technology trends industry impact predictions"}
+]}</output>
+        </example>
+        <example>
+            <input>who is Jensen Huang</input>
+            <reasoning>About a person → people</reasoning>
+            <output>{"queryContext": "people", "plan": [
+    {"aspect": "overview_facts", "query": "Jensen Huang biography NVIDIA CEO career background"},
+    {"aspect": "timeline_chronology", "query": "Jensen Huang career milestones NVIDIA founding history"},
+    {"aspect": "impact_implications", "query": "Jensen Huang impact AI industry NVIDIA leadership"},
+    {"aspect": "perspectives", "query": "Jensen Huang leadership style vision analysis ${year}"}
+]}</output>
+        </example>
+    </examples>
+
+    <output>
+        <instruction>Return ONLY a valid JSON object with "queryContext" and "plan" fields</instruction>
+        <instruction>"queryContext" is REQUIRED — use "general" if no specific context fits</instruction>
+        <instruction>"plan" is an array of 3-4 objects, each with "aspect" and "query" fields</instruction>
+        <format>{"queryContext": "...", "plan": [{"aspect": "...", "query": "..."}, ...]}</format>
+    </output>
+</generalResearchPlanner>
+`;
+};
 
 // General Planner (fallback - original prompt)
 export const researchPlannerPrompt = (query: string, currentDate: string) => `
@@ -825,7 +1870,7 @@ export const researchProofreadPrompt = () => `
 </researchProofread>
 `;
 
-export const aspectExtractorPrompt = (aspect: string, query: string, language: string = 'English') => `
+export const aspectExtractorPrompt = (aspect: string, query: string, language: string = 'English', queryType?: string) => `
 <aspectExtractor>
     <description>
         You are a research extraction agent. Your task is to extract structured knowledge
@@ -843,7 +1888,10 @@ export const aspectExtractorPrompt = (aspect: string, query: string, language: s
         3. Definitions - key terms and their meanings (if aspect is "fundamentals")
         4. Expert opinions - named sources with their viewpoints
         5. Contradictions - conflicting claims between sources
-        6. Entities - key people, organizations, technologies, concepts, locations, or events mentioned
+        6. Entities - key people, organizations, technologies, concepts, locations, or events mentioned${queryType === 'finance' ? `
+        7. Financial metrics - revenue, margins, growth rates with period and context
+        8. Valuation data - P/E, EV/Revenue, etc. with current value, historical median, and peer comparison when available
+        9. Risk factors - risks and opportunities with severity assessment (high/medium/low)` : ''}
     </task>
     <extractionRules>
         <rule>Extract ONLY information present in the sources - do not infer or add</rule>
@@ -878,7 +1926,16 @@ export const aspectExtractorPrompt = (aspect: string, query: string, language: s
             ],
             "entities": [
                 {"name": "Original Name", "normalizedName": "lowercase normalized", "type": "person|organization|technology|concept|location|event"}
+            ],${queryType === 'finance' ? `
+            "financialMetrics": [
+                {"metric": "Revenue", "value": "$26.97B", "period": "Q4 2024", "context": "YoY growth 22%"}
             ],
+            "valuationData": [
+                {"metric": "P/E (TTM)", "currentValue": "65x", "historicalMedian": "45x", "peerComparison": "AMD 120x, Intel 25x"}
+            ],
+            "riskFactors": [
+                {"factor": "China export restrictions", "type": "risk", "severity": "high", "description": "US export controls limit ~20% of revenue"}
+            ],` : ''}
             "keyInsight": "One sentence summarizing the most important finding for this aspect"
         }
     </outputFormat>
@@ -1121,7 +2178,7 @@ Extracted: 公司业务概况，财务指标，但缺少行业竞争分析</inpu
 `;
 
 // Deep Research: Enhanced Synthesizer for Multi-Round Research
-export const deepResearchSynthesizerPrompt = (query: string, currentDate: string, language: string = 'English', gapDescriptions: string[] = []) => `
+export const deepResearchSynthesizerPrompt = (query: string, currentDate: string, language: string = 'English', gapDescriptions: string[] = [], queryType?: string, competitiveCluster?: { entities: string[]; aspectOverlap: number }) => `
 <deepResearchSynthesizer>
     <description>
         You are an expert research synthesizer working with MULTI-ROUND research data.
@@ -1261,7 +2318,28 @@ Content goes here.
         You MUST write your ENTIRE response in ${language}.
         This includes ALL headers, body text, bullet points, and summary section.
         DO NOT mix languages. Every word must be in ${language}.
-    </CRITICAL_LANGUAGE_REQUIREMENT>
+    </CRITICAL_LANGUAGE_REQUIREMENT>${queryType === 'finance' ? `
+    <bearCaseInstruction>
+        <principle>Include a dedicated risks and contrarian view section (use collapsible format)</principle>
+        <principle>Present the strongest arguments AGAINST the main thesis or consensus view</principle>
+        <principle>Include specific risk factors with severity assessment if available from extracted data</principle>
+        <principle>If no significant risks were found in the research, note this explicitly rather than fabricating concerns</principle>
+        <principle>Never provide investment advice or buy/sell recommendations - only present the research findings</principle>
+        <syntax>
+<details>
+<summary><strong>Risks &amp; Contrarian View</strong></summary>
+
+[Bear case arguments and risk factors here]
+
+</details>
+        </syntax>
+    </bearCaseInstruction>` : ''}${competitiveCluster ? `
+    <competitiveComparison>
+        <entities>${competitiveCluster.entities.join(', ')}</entities>
+        <instruction>These companies appear across ${competitiveCluster.aspectOverlap} research aspects. Create a comparison table if quantitative data is available for at least 2 of them.</instruction>
+        <instruction>Compare key metrics mentioned in the research (revenue, market share, growth rate, etc.)</instruction>
+        <instruction>If insufficient quantitative data exists for a comparison table, describe the competitive relationships in prose instead.</instruction>
+    </competitiveComparison>` : ''}
 </deepResearchSynthesizer>
 `;
 

@@ -183,7 +183,7 @@ describe('Quality Enhancement Pipeline Integration', () => {
         },
       ];
 
-      const crossCutting = mergeEntities(extractions);
+      const { crossCuttingEntities: crossCutting } = mergeEntities(extractions);
 
       // Tesla appears in both aspects
       expect(crossCutting).toHaveLength(1);
@@ -445,7 +445,7 @@ describe('Quality Enhancement Pipeline Integration', () => {
 
       // Stage 2: Merge entities across aspects
       const validExtractions = [autoData.extraction, energyData.extraction];
-      const crossCuttingEntities = mergeEntities(
+      const { crossCuttingEntities } = mergeEntities(
         validExtractions as Array<{ aspect: string; entities?: { name: string; normalizedName: string; type: 'person' | 'organization' | 'technology' | 'concept' | 'location' | 'event' }[] }>
       );
 
