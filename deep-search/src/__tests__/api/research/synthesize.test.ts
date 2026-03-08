@@ -408,7 +408,9 @@ describe('/api/research/synthesize', () => {
         'quantum computing',
         expect.any(String), // date
         'English',
-        gapDescriptions
+        gapDescriptions,
+        undefined, // queryType
+        undefined, // competitiveCluster
       );
     });
 

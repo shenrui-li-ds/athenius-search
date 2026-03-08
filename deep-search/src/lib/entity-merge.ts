@@ -1,4 +1,4 @@
-import { ExtractedEntity, CrossCuttingEntity, EntityType } from '@/lib/types';
+import { ExtractedEntity, CrossCuttingEntity, EntityType, CompetitiveCluster, MergeEntitiesResult } from '@/lib/types';
 
 // Common suffixes to strip during normalization
 const STRIP_SUFFIXES = [
@@ -50,9 +50,11 @@ interface ExtractionWithEntities {
 /**
  * Merge entities across aspect extractions.
  * Returns entities that appear in 2+ aspects (cross-cutting entities).
+ * When queryType is 'finance' and 3+ organization entities span 2+ aspects,
+ * includes a competitiveCluster in the result.
  * Performance: <20ms for 4 aspects with 15 entities each.
  */
-export function mergeEntities(extractions: ExtractionWithEntities[]): CrossCuttingEntity[] {
+export function mergeEntities(extractions: ExtractionWithEntities[], queryType?: string): MergeEntitiesResult {
   // Map: normalizedName -> { aspects: Set, names: Map<originalName, count>, type }
   const entityMap = new Map<string, {
     aspects: Set<string>;
@@ -115,5 +117,24 @@ export function mergeEntities(extractions: ExtractionWithEntities[]): CrossCutti
   // Sort by count descending (most cross-cutting first)
   crossCutting.sort((a, b) => b.count - a.count);
 
-  return crossCutting;
+  // Detect competitive cluster for finance queries
+  let competitiveCluster: CompetitiveCluster | undefined;
+  if (queryType === 'finance') {
+    const orgEntities = crossCutting.filter(e => e.type === 'organization');
+    if (orgEntities.length >= 3) {
+      // Average aspect overlap across org entities
+      const avgOverlap = orgEntities.reduce((sum, e) => sum + e.count, 0) / orgEntities.length;
+      if (avgOverlap >= 2) {
+        competitiveCluster = {
+          entities: orgEntities.map(e => e.name),
+          aspectOverlap: Math.round(avgOverlap * 10) / 10,
+        };
+      }
+    }
+  }
+
+  return {
+    crossCuttingEntities: crossCutting,
+    ...(competitiveCluster && { competitiveCluster }),
+  };
 }

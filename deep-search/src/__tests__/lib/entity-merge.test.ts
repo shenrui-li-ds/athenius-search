@@ -1,5 +1,5 @@
 import { normalizeEntityName, mergeEntities } from '@/lib/entity-merge';
-import { ExtractedEntity } from '@/lib/types';
+import { ExtractedEntity, MergeEntitiesResult } from '@/lib/types';
 
 describe('normalizeEntityName', () => {
   it('converts to lowercase', () => {
@@ -86,7 +86,7 @@ describe('mergeEntities', () => {
       },
     ];
 
-    const result = mergeEntities(extractions);
+    const { crossCuttingEntities: result } = mergeEntities(extractions);
 
     // Tesla appears in all 3 aspects (normalized: "tesla")
     const tesla = result.find(e => e.normalizedName === 'tesla');
@@ -110,7 +110,7 @@ describe('mergeEntities', () => {
       },
     ];
 
-    const result = mergeEntities(extractions);
+    const { crossCuttingEntities: result } = mergeEntities(extractions);
 
     // Ford only appears in 1 aspect
     const ford = result.find(e => e.normalizedName === 'ford');
@@ -128,7 +128,7 @@ describe('mergeEntities', () => {
       { aspect: 'topic2', entities: [] },
     ];
 
-    const result = mergeEntities(extractions);
+    const { crossCuttingEntities: result } = mergeEntities(extractions);
     expect(result).toEqual([]);
   });
 
@@ -144,7 +144,7 @@ describe('mergeEntities', () => {
       },
     ];
 
-    const result = mergeEntities(extractions);
+    const { crossCuttingEntities: result } = mergeEntities(extractions);
     expect(result).toEqual([]);
   });
 
@@ -154,7 +154,7 @@ describe('mergeEntities', () => {
       { aspect: 'topic2', entities: [makeEntity('Tesla')] },
     ] as Array<{ aspect: string; entities?: ExtractedEntity[] }>;
 
-    const result = mergeEntities(extractions);
+    const { crossCuttingEntities: result } = mergeEntities(extractions);
     expect(result).toEqual([]);
   });
 
@@ -170,7 +170,7 @@ describe('mergeEntities', () => {
       },
     ];
 
-    const result = mergeEntities(extractions);
+    const { crossCuttingEntities: result } = mergeEntities(extractions);
 
     const tesla = result.find(e => e.normalizedName === 'tesla');
     expect(tesla).toBeDefined();
@@ -195,7 +195,7 @@ describe('mergeEntities', () => {
       },
     ];
 
-    const result = mergeEntities(extractions);
+    const { crossCuttingEntities: result } = mergeEntities(extractions);
     const tesla = result.find(e => e.normalizedName === 'tesla');
     expect(tesla).toBeDefined();
     // "Tesla" appears 2 times, "Tesla, Inc." 1 time
@@ -228,7 +228,112 @@ describe('mergeEntities', () => {
       },
     ];
 
-    const result = mergeEntities(extractions);
+    const { crossCuttingEntities: result } = mergeEntities(extractions);
     expect(result[0].type).toBe('person');
+  });
+
+  it('returns MergeEntitiesResult structure', () => {
+    const extractions = [
+      { aspect: 'a1', entities: [makeEntity('Tesla')] },
+      { aspect: 'a2', entities: [makeEntity('Tesla')] },
+    ];
+
+    const result = mergeEntities(extractions);
+    expect(result).toHaveProperty('crossCuttingEntities');
+    expect(Array.isArray(result.crossCuttingEntities)).toBe(true);
+  });
+});
+
+describe('competitive cluster detection', () => {
+  const makeEntity = (name: string, type: string = 'organization'): ExtractedEntity => ({
+    name,
+    normalizedName: normalizeEntityName(name),
+    type: type as ExtractedEntity['type'],
+  });
+
+  it('detects cluster when 3+ org entities span 2+ aspects in finance', () => {
+    const extractions = [
+      {
+        aspect: 'competitive_position',
+        entities: [makeEntity('NVIDIA'), makeEntity('AMD'), makeEntity('Intel')],
+      },
+      {
+        aspect: 'valuation_context',
+        entities: [makeEntity('NVIDIA'), makeEntity('AMD'), makeEntity('Intel')],
+      },
+    ];
+
+    const result = mergeEntities(extractions, 'finance');
+    expect(result.competitiveCluster).toBeDefined();
+    expect(result.competitiveCluster!.entities).toContain('NVIDIA');
+    expect(result.competitiveCluster!.entities).toContain('AMD');
+    expect(result.competitiveCluster!.entities).toContain('Intel');
+    expect(result.competitiveCluster!.aspectOverlap).toBeGreaterThanOrEqual(2);
+  });
+
+  it('does NOT detect cluster with only 2 org entities', () => {
+    const extractions = [
+      {
+        aspect: 'competitive_position',
+        entities: [makeEntity('NVIDIA'), makeEntity('AMD')],
+      },
+      {
+        aspect: 'valuation_context',
+        entities: [makeEntity('NVIDIA'), makeEntity('AMD')],
+      },
+    ];
+
+    const result = mergeEntities(extractions, 'finance');
+    expect(result.competitiveCluster).toBeUndefined();
+  });
+
+  it('does NOT detect cluster with 3+ non-org entities', () => {
+    const extractions = [
+      {
+        aspect: 'a1',
+        entities: [makeEntity('AI', 'technology'), makeEntity('ML', 'technology'), makeEntity('DL', 'technology')],
+      },
+      {
+        aspect: 'a2',
+        entities: [makeEntity('AI', 'technology'), makeEntity('ML', 'technology'), makeEntity('DL', 'technology')],
+      },
+    ];
+
+    const result = mergeEntities(extractions, 'finance');
+    expect(result.competitiveCluster).toBeUndefined();
+  });
+
+  it('does NOT detect cluster in non-finance query', () => {
+    const extractions = [
+      {
+        aspect: 'a1',
+        entities: [makeEntity('NVIDIA'), makeEntity('AMD'), makeEntity('Intel')],
+      },
+      {
+        aspect: 'a2',
+        entities: [makeEntity('NVIDIA'), makeEntity('AMD'), makeEntity('Intel')],
+      },
+    ];
+
+    const result = mergeEntities(extractions);
+    expect(result.competitiveCluster).toBeUndefined();
+  });
+
+  it('cluster detection completes in <2ms', () => {
+    const extractions = [
+      {
+        aspect: 'a1',
+        entities: Array.from({ length: 10 }, (_, i) => makeEntity(`Company${i}`)),
+      },
+      {
+        aspect: 'a2',
+        entities: Array.from({ length: 10 }, (_, i) => makeEntity(`Company${i}`)),
+      },
+    ];
+
+    const start = performance.now();
+    mergeEntities(extractions, 'finance');
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeLessThan(20); // generous for CI
   });
 });

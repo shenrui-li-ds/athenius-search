@@ -45,7 +45,7 @@ function summarizeExtractedData(extractedData: ExtractedAspect[]): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const { query, extractedData, language, provider, crossCuttingEntities = [], sourceAuthority } = await req.json();
+    const { query, extractedData, language, provider, crossCuttingEntities = [], sourceAuthority, queryType } = await req.json();
     const llmProvider = provider as LLMProvider | undefined;
 
     if (!query || !extractedData) {
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
 
     // Build compressed structured summaries from extracted data
     const compressedSummaries = extractedData.map((aspect: ExtractedAspect & { claims?: Array<{ statement: string; confidence?: string }>; statistics?: Array<{ year?: string }>; expertOpinions?: unknown[]; contradictions?: Array<{ claim1: string; claim2: string }>; entities?: Array<{ normalizedName: string }> }) =>
-      compressAspectSummary(aspect, []) // Sources are tagged at query time via tagSourceAuthority
+      compressAspectSummary(aspect, [], queryType) // Sources are tagged at query time via tagSourceAuthority
     );
     let extractedSummary = formatCompressedSummaries(compressedSummaries);
 

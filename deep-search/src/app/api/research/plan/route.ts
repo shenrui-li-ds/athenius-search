@@ -10,6 +10,7 @@ import {
   researchPlannerAcademicPrompt,
   researchPlannerExplanatoryPrompt,
   researchPlannerFinancePrompt,
+  detectFinanceSubType,
 } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
 import { generateCacheKey, getFromCache, setToCache } from '@/lib/cache';
@@ -23,12 +24,15 @@ export interface ResearchPlanItem {
   query: string;
 }
 
+export type FinanceSubType = 'stock_analysis' | 'macro' | 'personal_finance' | 'crypto' | 'general_finance';
+
 export interface ResearchPlanResponse {
   originalQuery: string;
   queryType: QueryType;
   suggestedDepth: ResearchDepth;
   plan: ResearchPlanItem[];
   cached?: boolean;
+  financeSubType?: FinanceSubType;
 }
 
 interface RouterResult {
@@ -198,11 +202,14 @@ export async function POST(req: NextRequest) {
       plan = [{ aspect: 'general', query: query }];
     }
 
+    const financeSubType = queryType === 'finance' ? detectFinanceSubType(query) : undefined;
+
     const result: ResearchPlanResponse = {
       originalQuery: query,
       queryType,
       suggestedDepth,
-      plan
+      plan,
+      ...(financeSubType && { financeSubType }),
     };
 
     // Cache the response

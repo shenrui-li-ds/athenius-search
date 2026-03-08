@@ -406,10 +406,11 @@ XML-structured prompts for consistent LLM behavior.
 | `researchPlannerTechnicalPrompt(query, date)` | Technical: specs → expert analysis → comparisons |
 | `researchPlannerAcademicPrompt(query, date)` | Academic: foundations → findings → methodology → debates |
 | `researchPlannerExplanatoryPrompt(query, date)` | Explanatory: definition → mechanism → examples → misconceptions |
-| `researchPlannerFinancePrompt(query, date)` | Finance: fundamentals → metrics → analyst views → risks |
-| `aspectExtractorPrompt(aspect, query)` | Extract structured knowledge (claims, stats, opinions, contradictions) |
+| `researchPlannerFinancePrompt(query, date)` | Finance: sub-type-aware aspects (stock_analysis, macro, personal_finance, crypto, general_finance) |
+| `detectFinanceSubType(query)` | Programmatic regex classifier → `FinanceSubType` (<1ms, no LLM) |
+| `aspectExtractorPrompt(aspect, query, lang?, queryType?)` | Extract structured knowledge; when `queryType === 'finance'`, adds financialMetrics/valuationData/riskFactors |
 | `researchSynthesizerPrompt(query, date)` | Synthesize extracted data into 800-1000 word document with collapsible sections |
-| `deepResearchSynthesizerPrompt(query, date, lang, gapDescriptions)` | Deep mode: Synthesize multi-round data into 1000-1200 word document |
+| `deepResearchSynthesizerPrompt(query, date, lang, gapDescriptions, queryType?, competitiveCluster?)` | Deep mode: 1000-1200 words; when `queryType === 'finance'`, adds bear case section; when `competitiveCluster` present, adds comparison table instruction |
 | `gapAnalyzerPrompt(query, extractedSummary, lang)` | Analyze research for knowledge gaps (returns JSON array of gaps) |
 | `researchProofreadPrompt()` | Research-specific proofreading (preserves depth, improves flow) |
 
@@ -528,11 +529,13 @@ Identifies entities that appear across multiple research aspects in deep researc
 | Function | Description |
 |----------|-------------|
 | `normalizeEntityName(name)` | Lowercase, strip corporate suffixes (Inc, Corp, Ltd, etc.), trim |
-| `mergeEntities(extractions)` | Group entities by normalized name, return those in 2+ aspects |
+| `mergeEntities(extractions, queryType?)` | Group entities by normalized name, return `MergeEntitiesResult` with those in 2+ aspects. When `queryType === 'finance'` and 3+ org entities span 2+ aspects, includes `competitiveCluster`. |
 
 **Performance:** `mergeEntities()` completes in <20ms for 4 aspects with 15 entities each.
 
-**Usage:** Called client-side in `search-client.tsx` after all Round 1 extractions complete. Results passed to synthesize and analyze-gaps APIs.
+**Finance Competitive Cluster Detection:** When `queryType === 'finance'`, the function checks if 3+ organization-type cross-cutting entities exist. If so, it returns a `CompetitiveCluster` with entity names and average aspect overlap count, signaling the synthesizer to create comparison tables.
+
+**Usage:** Called client-side in `search-client.tsx` after all Round 1 extractions complete. Returns `{ crossCuttingEntities, competitiveCluster? }`. Both are passed to synthesize and analyze-gaps APIs.
 
 ### `source-authority.ts` - Source Authority Tagging
 
@@ -561,10 +564,12 @@ Replaces the lossy `summarizeExtractedData()` with structured summaries preservi
 
 | Function | Description |
 |----------|-------------|
-| `compressAspectSummary(extraction, sources)` | Convert extraction to ~120 token structured summary |
+| `compressAspectSummary(extraction, sources, queryType?)` | Convert extraction to ~120 token structured summary. When `queryType === 'finance'`, uses finance-specific weak area checks and includes `financialMetricCount`, `valuationDataCount`, `riskFactorCount`. |
 | `formatCompressedSummaries(summaries)` | Format as text for gap analyzer prompt |
 
-**Summary Fields:** claim counts by confidence, statistic count with date range, expert opinion count, contradiction briefs, source authority distribution, entity list, weak areas.
+**Summary Fields:** claim counts by confidence, statistic count with date range, expert opinion count, contradiction briefs, source authority distribution, entity list, weak areas. Finance queries add: financialMetricCount, valuationDataCount, riskFactorCount.
+
+**Finance-Specific Weak Areas:** When `queryType === 'finance'`, replaces generic weak area checks with: "No analyst views" (no expert opinions), "No valuation data", "No risk assessment", "No competitive comparison" (≤1 org entity).
 
 **Performance:** <5ms per aspect. Internally calls `tagSourceAuthority()` on each source URL.
 
