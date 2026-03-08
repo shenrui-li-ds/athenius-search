@@ -97,7 +97,6 @@ export async function updateSession(request: NextRequest) {
     '/api/auth/check-whitelist',
     '/api/auth/send-otp',
     '/api/auth/verify-otp',
-    '/api/test',  // Temporary: test endpoints (remove before merge)
   ];
   // Check if route is public using exact match or proper path prefix
   // This prevents /auth/login-attack from matching /auth/login

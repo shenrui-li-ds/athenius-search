@@ -3,18 +3,20 @@ import { callLLM, getCurrentDate, LLMProvider, LLMResponse } from '@/lib/api-uti
 import { trackServerApiUsage, estimateTokens } from '@/lib/supabase/usage-tracking';
 import {
   researchRouterPrompt,
-  researchPlannerPrompt,
-  researchPlannerShoppingPrompt,
-  researchPlannerTravelPrompt,
-  researchPlannerTechnicalPrompt,
-  researchPlannerAcademicPrompt,
-  researchPlannerExplanatoryPrompt,
-  researchPlannerFinancePrompt,
   detectFinanceSubType,
+  // V2 prompts (two-dimensional classification)
+  researchPlannerFinancePromptV2,
+  researchPlannerShoppingPromptV2,
+  researchPlannerTravelPromptV2,
+  researchPlannerTechnicalPromptV2,
+  researchPlannerAcademicPromptV2,
+  researchPlannerExplanatoryPromptV2,
+  researchPlannerGeneralPromptV2,
 } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
 import { generateCacheKey, getFromCache, setToCache } from '@/lib/cache';
 import { createClient } from '@/lib/supabase/server';
+import { logClassification } from '@/lib/classification-log';
 
 export type QueryType = 'shopping' | 'travel' | 'technical' | 'academic' | 'explanatory' | 'finance' | 'general';
 export type ResearchDepth = 'standard' | 'deep';
@@ -29,6 +31,7 @@ export type FinanceSubType = 'stock_analysis' | 'macro' | 'personal_finance' | '
 export interface ResearchPlanResponse {
   originalQuery: string;
   queryType: QueryType;
+  queryContext?: string;
   suggestedDepth: ResearchDepth;
   plan: ResearchPlanItem[];
   cached?: boolean;
@@ -40,24 +43,17 @@ interface RouterResult {
   suggestedDepth: ResearchDepth;
 }
 
-// Map query type to specialized planner prompt
+// Map query type to V2 planner prompt (two-dimensional classification)
 function getPlannerPrompt(queryType: QueryType, query: string, currentDate: string): string {
   switch (queryType) {
-    case 'shopping':
-      return researchPlannerShoppingPrompt(query, currentDate);
-    case 'travel':
-      return researchPlannerTravelPrompt(query, currentDate);
-    case 'technical':
-      return researchPlannerTechnicalPrompt(query, currentDate);
-    case 'academic':
-      return researchPlannerAcademicPrompt(query, currentDate);
-    case 'explanatory':
-      return researchPlannerExplanatoryPrompt(query, currentDate);
-    case 'finance':
-      return researchPlannerFinancePrompt(query, currentDate);
+    case 'shopping': return researchPlannerShoppingPromptV2(query, currentDate);
+    case 'travel': return researchPlannerTravelPromptV2(query, currentDate);
+    case 'technical': return researchPlannerTechnicalPromptV2(query, currentDate);
+    case 'academic': return researchPlannerAcademicPromptV2(query, currentDate);
+    case 'explanatory': return researchPlannerExplanatoryPromptV2(query, currentDate);
+    case 'finance': return researchPlannerFinancePromptV2(query, currentDate);
     case 'general':
-    default:
-      return researchPlannerPrompt(query, currentDate);
+    default: return researchPlannerGeneralPromptV2(query, currentDate);
   }
 }
 
@@ -150,9 +146,31 @@ export async function POST(req: NextRequest) {
     }
 
     // Cache miss - first classify the query type and depth
-    const { category: queryType, suggestedDepth } = await classifyQuery(query, llmProvider);
+    // Check classification cache (provider-independent)
+    const classificationCacheKey = generateCacheKey('classification', { query });
+    const { data: cachedClassification } = await getFromCache<RouterResult>(
+      classificationCacheKey,
+      supabase
+    );
 
-    // Get the appropriate planner prompt based on query type
+    const classificationStart = Date.now();
+    let routerResult: RouterResult;
+    let classificationCached = false;
+
+    if (cachedClassification) {
+      routerResult = cachedClassification;
+      classificationCached = true;
+      console.log(`[Router] Classification cache hit: ${routerResult.category}/${routerResult.suggestedDepth}`);
+    } else {
+      routerResult = await classifyQuery(query, llmProvider);
+      // Cache classification (provider-independent)
+      await setToCache(classificationCacheKey, 'classification', query, routerResult, undefined, supabase);
+    }
+
+    const { category: queryType, suggestedDepth } = routerResult;
+    const classificationLatencyMs = classificationCached ? null : Date.now() - classificationStart;
+
+    // Get the appropriate V2 planner prompt based on query type
     const currentDate = getCurrentDate();
     const prompt = getPlannerPrompt(queryType, query, currentDate);
 
@@ -173,8 +191,9 @@ export async function POST(req: NextRequest) {
       actual_usage: plannerResult.usage
     }).catch(err => console.error('Failed to track API usage:', err));
 
-    // Parse the JSON response
+    // Parse the V2 JSON response (includes queryContext)
     let plan: ResearchPlanItem[] = [];
+    let queryContext: string | null = null;
     try {
       // Extract JSON from potential markdown code blocks
       let jsonStr = plannerResult.content.trim();
@@ -182,11 +201,22 @@ export async function POST(req: NextRequest) {
       if (jsonMatch) {
         jsonStr = jsonMatch[1].trim();
       }
-      plan = JSON.parse(jsonStr);
+      const parsed = JSON.parse(jsonStr);
+
+      // V2 format: { queryContext: "stock", plan: [...] }
+      if (parsed.queryContext && Array.isArray(parsed.plan)) {
+        queryContext = parsed.queryContext;
+        plan = parsed.plan;
+      } else if (Array.isArray(parsed)) {
+        // Fallback: V1-style array response
+        plan = parsed;
+      } else {
+        throw new Error('Invalid plan format');
+      }
 
       // Validate the plan structure
-      if (!Array.isArray(plan) || plan.length === 0) {
-        throw new Error('Invalid plan format');
+      if (plan.length === 0) {
+        throw new Error('Empty plan');
       }
 
       // Ensure each item has aspect and query
@@ -207,10 +237,22 @@ export async function POST(req: NextRequest) {
     const result: ResearchPlanResponse = {
       originalQuery: query,
       queryType,
+      ...(queryContext && { queryContext }),
       suggestedDepth,
       plan,
       ...(financeSubType && { financeSubType }),
     };
+
+    // Log classification (fire-and-forget)
+    logClassification({
+      query,
+      queryType,
+      queryContext: queryContext || null,
+      suggestedDepth,
+      provider: llmProvider || null,
+      cached: classificationCached,
+      latencyMs: classificationLatencyMs,
+    }, supabase);
 
     // Cache the response
     await setToCache(cacheKey, 'plan', query, result, llmProvider, supabase);
