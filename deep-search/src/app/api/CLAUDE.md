@@ -186,18 +186,23 @@ Extracts structured knowledge from search results for one aspect. Called in para
     "contradictions": [
       { "claim1": "...", "claim2": "...", "sources": [1, 3] }
     ],
+    "entities": [
+      { "name": "Tesla, Inc.", "normalizedName": "tesla", "type": "organization" }
+    ],
     "keyInsight": "One sentence summary"
   },
-  "updatedSourceIndex": { "https://example.com": 1 }
+  "updatedSourceIndex": { "https://example.com": 1 },
+  "sourceAuthority": { "https://example.com": "high-authority" }
 }
 ```
 
 **Features:**
-- Extracts structured claims, statistics, definitions, expert opinions
+- Extracts structured claims, statistics, definitions, expert opinions, and entities
 - Identifies contradictions between sources
 - Uses low temperature (0.3) for factual extraction
 - Maintains global source index for consistent citations
-- Falls back to minimal extraction on parse errors
+- Falls back to minimal extraction on parse errors (entities default to `[]`)
+- Tags each source URL as `high-authority` or `unclassified` via domain whitelist
 
 **Confidence Levels:**
 - `established`: Multiple sources agree, well-documented
@@ -260,7 +265,11 @@ data: {"done": true}
 ```json
 {
   "deep": true,
-  "gapDescriptions": ["Missing practical examples", "Need expert opinions"]
+  "gapDescriptions": ["Missing practical examples", "Need expert opinions"],
+  "crossCuttingEntities": [
+    { "name": "Tesla", "normalizedName": "tesla", "type": "organization", "aspects": ["automotive", "energy storage"], "count": 2 }
+  ],
+  "sourceAuthority": { "highAuthorityCount": 5, "unclassifiedCount": 12 }
 }
 ```
 
@@ -268,6 +277,8 @@ When `deep=true`:
 - Uses `deepResearchSynthesizerPrompt` with gap context
 - Targets 1000-1200 words
 - System prompt includes multi-round integration strategy
+- Includes `<crossCuttingEntities>` XML section when entities span multiple aspects
+- Includes `<sourceAuthority>` context when authority data is available
 
 ### `/api/research/analyze-gaps` - Gap Analysis
 Analyzes extracted research data to identify knowledge gaps for Round 2 searches.
@@ -280,11 +291,16 @@ Analyzes extracted research data to identify knowledge gaps for Round 2 searches
     {
       "aspect": "fundamentals",
       "keyInsight": "Summary of findings",
-      "claims": [{ "statement": "..." }]
+      "claims": [{ "statement": "...", "confidence": "established" }],
+      "entities": [{ "normalizedName": "tesla" }]
     }
   ],
   "language": "English",
-  "provider": "deepseek"
+  "provider": "deepseek",
+  "crossCuttingEntities": [
+    { "name": "Tesla", "normalizedName": "tesla", "type": "organization", "aspects": ["automotive", "energy"], "count": 2 }
+  ],
+  "sourceAuthority": { "highAuthorityCount": 5, "unclassifiedCount": 12 }
 }
 ```
 
@@ -318,6 +334,8 @@ Analyzes extracted research data to identify knowledge gaps for Round 2 searches
 - Uses low temperature (0.4) for analytical task
 - Fail-safe: Returns empty gaps on error (doesn't block pipeline)
 - Generates optimized search queries for each gap
+- Uses compressed structured summaries (claim counts, authority distribution, entity list) instead of lossy text summary
+- Accepts cross-cutting entities and source authority context for more targeted gap identification
 
 ### `/api/research/cache-round1` - Round 1 Cache
 Caches Round 1 research data for retry optimization. When retrying deep research, Round 1 results are reused and only Round 2 (gap filling) is executed.

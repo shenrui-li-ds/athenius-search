@@ -843,6 +843,7 @@ export const aspectExtractorPrompt = (aspect: string, query: string, language: s
         3. Definitions - key terms and their meanings (if aspect is "fundamentals")
         4. Expert opinions - named sources with their viewpoints
         5. Contradictions - conflicting claims between sources
+        6. Entities - key people, organizations, technologies, concepts, locations, or events mentioned
     </task>
     <extractionRules>
         <rule>Extract ONLY information present in the sources - do not infer or add</rule>
@@ -874,6 +875,9 @@ export const aspectExtractorPrompt = (aspect: string, query: string, language: s
             ],
             "contradictions": [
                 {"claim1": "...", "claim2": "...", "sources": [1, 3]}
+            ],
+            "entities": [
+                {"name": "Original Name", "normalizedName": "lowercase normalized", "type": "person|organization|technology|concept|location|event"}
             ],
             "keyInsight": "One sentence summarizing the most important finding for this aspect"
         }

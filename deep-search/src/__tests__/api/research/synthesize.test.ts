@@ -481,4 +481,99 @@ describe('/api/research/synthesize', () => {
       expect(userMessage?.content).toContain('1000-1200 words');
     });
   });
+
+  describe('cross-cutting entities and source authority', () => {
+    const testExtractions = [
+      {
+        aspect: 'fundamentals',
+        claims: [{ statement: 'Test claim', sources: [1], confidence: 'established' }],
+        statistics: [],
+        definitions: [],
+        expertOpinions: [],
+        contradictions: [],
+        keyInsight: 'Test insight',
+        entities: [],
+      },
+    ];
+
+    it('includes crossCuttingEntities XML section in prompt when entities provided', async () => {
+      mockCallLLM.mockResolvedValueOnce({ content: 'Synthesis result', usage: undefined });
+
+      const request = new NextRequest('http://localhost:3000/api/research/synthesize', {
+        method: 'POST',
+        body: JSON.stringify({
+          query: 'tesla impact',
+          extractedData: testExtractions,
+          stream: false,
+          provider: 'deepseek',
+          crossCuttingEntities: [
+            { name: 'Tesla', normalizedName: 'tesla', type: 'organization', aspects: ['automotive', 'energy storage'], count: 2 },
+            { name: 'lithium-ion', normalizedName: 'lithium-ion', type: 'technology', aspects: ['energy storage', 'manufacturing'], count: 2 },
+          ],
+        }),
+      });
+
+      await POST(request);
+
+      const callArgs = mockCallLLM.mock.calls[0];
+      const messages = callArgs[0] as { role: string; content: string }[];
+      const userMessage = messages.find(m => m.role === 'user');
+
+      expect(userMessage?.content).toContain('<crossCuttingEntities>');
+      expect(userMessage?.content).toContain('Tesla');
+      expect(userMessage?.content).toContain('automotive, energy storage');
+      expect(userMessage?.content).toContain('lithium-ion');
+      expect(userMessage?.content).toContain('entityInstruction');
+    });
+
+    it('does not include crossCuttingEntities section when no entities provided', async () => {
+      mockCallLLM.mockResolvedValueOnce({ content: 'Synthesis result', usage: undefined });
+
+      const request = new NextRequest('http://localhost:3000/api/research/synthesize', {
+        method: 'POST',
+        body: JSON.stringify({
+          query: 'quantum computing',
+          extractedData: testExtractions,
+          stream: false,
+          provider: 'deepseek',
+        }),
+      });
+
+      await POST(request);
+
+      const callArgs = mockCallLLM.mock.calls[0];
+      const messages = callArgs[0] as { role: string; content: string }[];
+      const userMessage = messages.find(m => m.role === 'user');
+
+      expect(userMessage?.content).not.toContain('<crossCuttingEntities>');
+    });
+
+    it('includes source authority context in prompt when provided', async () => {
+      mockCallLLM.mockResolvedValueOnce({ content: 'Synthesis result', usage: undefined });
+
+      const request = new NextRequest('http://localhost:3000/api/research/synthesize', {
+        method: 'POST',
+        body: JSON.stringify({
+          query: 'scientific topic',
+          extractedData: testExtractions,
+          stream: false,
+          provider: 'deepseek',
+          sourceAuthority: {
+            highAuthorityCount: 5,
+            unclassifiedCount: 12,
+          },
+        }),
+      });
+
+      await POST(request);
+
+      const callArgs = mockCallLLM.mock.calls[0];
+      const messages = callArgs[0] as { role: string; content: string }[];
+      const userMessage = messages.find(m => m.role === 'user');
+
+      expect(userMessage?.content).toContain('<sourceAuthority>');
+      expect(userMessage?.content).toContain('highAuthority');
+      expect(userMessage?.content).toContain('authorityInstruction');
+    });
+  });
 });

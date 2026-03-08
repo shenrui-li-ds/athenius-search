@@ -667,6 +667,8 @@ GEMINI_API_KEY=
 ## Active Technologies
 - TypeScript 5.x (Next.js 15.2 App Router) + Next.js 15.2, React 19, existing `api-utils.ts` utilities (001-academic-paper-search)
 - Existing Supabase cache (no schema changes) (001-academic-paper-search)
+- TypeScript 5.x / Next.js 15.2 (App Router) + React 19, next-intl, react-markdown, Tailwind CSS 4 (002-deep-research-quality)
+- N/A (all changes are in-memory, per-session only) (002-deep-research-quality)
 
 ## Recent Changes
 - 001-academic-paper-search: Added TypeScript 5.x (Next.js 15.2 App Router) + Next.js 15.2, React 19, existing `api-utils.ts` utilities

@@ -519,6 +519,55 @@ interface OpenAIMessage {
 }
 ```
 
+### `entity-merge.ts` - Cross-Aspect Entity Merge
+
+Identifies entities that appear across multiple research aspects in deep research mode.
+
+**Key Functions:**
+
+| Function | Description |
+|----------|-------------|
+| `normalizeEntityName(name)` | Lowercase, strip corporate suffixes (Inc, Corp, Ltd, etc.), trim |
+| `mergeEntities(extractions)` | Group entities by normalized name, return those in 2+ aspects |
+
+**Performance:** `mergeEntities()` completes in <20ms for 4 aspects with 15 entities each.
+
+**Usage:** Called client-side in `search-client.tsx` after all Round 1 extractions complete. Results passed to synthesize and analyze-gaps APIs.
+
+### `source-authority.ts` - Source Authority Tagging
+
+Tags source URLs as high-authority or unclassified based on a curated domain whitelist.
+
+**Key Exports:**
+
+| Export | Description |
+|--------|-------------|
+| `tagSourceAuthority(url)` | Returns `'high-authority'` or `'unclassified'` — never `'low-authority'` |
+| `AUTHORITY_DOMAINS` | `Set<string>` of ~45 known academic/institutional domains |
+
+**Authority Rules:**
+- Exact domain match against whitelist (arxiv.org, nature.com, etc.)
+- Subdomain matching (journals.plos.org → plos.org → high-authority)
+- TLD-based rules: `.edu` and `.gov` domains are always high-authority
+- Unknown domains are `unclassified` (never penalized)
+
+**Performance:** <1ms per call (Set lookup).
+
+### `compressed-summary.ts` - Compressed Gap Analysis Summary
+
+Replaces the lossy `summarizeExtractedData()` with structured summaries preserving coverage metadata.
+
+**Key Functions:**
+
+| Function | Description |
+|----------|-------------|
+| `compressAspectSummary(extraction, sources)` | Convert extraction to ~120 token structured summary |
+| `formatCompressedSummaries(summaries)` | Format as text for gap analyzer prompt |
+
+**Summary Fields:** claim counts by confidence, statistic count with date range, expert opinion count, contradiction briefs, source authority distribution, entity list, weak areas.
+
+**Performance:** <5ms per aspect. Internally calls `tagSourceAuthority()` on each source URL.
+
 ### `academic-search.ts` - Academic Paper Search
 
 Searches OpenAlex and arXiv for academic papers, converts results to `TavilySearchResult` format for pipeline compatibility.
