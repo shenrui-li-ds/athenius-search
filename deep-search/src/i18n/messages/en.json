@@ -483,7 +483,7 @@
       "preview": {
         "query": "What are the latest breakthroughs in quantum computing?",
         "step1": "Analyzing intent",
-        "step2": "Searching 15 sources",
+        "step2": "Searching 30+ sources",
         "step3": "Synthesizing..."
       }
     },
@@ -499,7 +499,7 @@
       },
       "athenius": {
         "title": "Athenius",
-        "preview": "Quantum computing has seen significant breakthroughs in 2025, particularly in error correction and qubit stability...",
+        "preview": "Quantum computing has seen significant breakthroughs recently, particularly in error correction and qubit stability...",
         "description": "Synthesized answer with cited sources, ready to use."
       }
     },
@@ -512,7 +512,7 @@
       },
       "research": {
         "title": "Research Mode",
-        "description": "Multi-angle deep research that explores topics from multiple perspectives, synthesized into comprehensive reports with citations."
+        "description": "Adaptive deep research with specialized strategies for finance, travel, technical, academic, and more—with automatic gap analysis and multi-round searches."
       },
       "brainstorm": {
         "title": "Brainstorm",
@@ -531,9 +531,9 @@
       "aiSuggestion": "AI suggested Deep Research for this query",
       "planLabel": "Research Plan:",
       "plan": {
-        "item1": "best beginner dive computers under 48mm under 400 USD 2025",
+        "item1": "best beginner dive computers under 48mm under 400 USD 2026",
         "item2": "Mares Smart vs Cressi Neon vs Aqua Lung i200C comparison",
-        "item3": "best budget scuba dive computer reviews for beginners 2025 2026",
+        "item3": "best budget scuba dive computer reviews for beginners 2026",
         "item4": "small wrist budget dive computer reddit user reviews and feedback"
       },
       "gapsLabel": "Deepening research on gaps:",
@@ -578,11 +578,11 @@
       "steps": {
         "understand": {
           "title": "Understand",
-          "description": "Our AI analyzes your query to understand intent, context, and what you're really looking for—not just keywords."
+          "description": "Our AI classifies your query into specialized categories—finance, travel, academic, technical, and more—then selects the optimal research strategy."
         },
         "research": {
           "title": "Research",
-          "description": "Multiple parallel searches across the web and your documents, with deep thinking and gap analysis to identify and fill missing perspectives."
+          "description": "Multiple parallel searches across the web, academic papers, and your documents, with adaptive gap analysis to identify and fill missing perspectives."
         },
         "synthesize": {
           "title": "Synthesize",
