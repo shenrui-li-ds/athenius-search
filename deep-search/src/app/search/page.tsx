@@ -18,6 +18,7 @@ interface SearchPageProps {
     mode?: string;
     deep?: string;
     files?: string;
+    thread?: string;
   }>;
 }
 
@@ -55,7 +56,11 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     ? params.files.split(',').filter(id => id.trim().length > 0)
     : [];
 
-  if (!query) {
+  // Thread ID for threaded conversational search
+  const threadId = params.thread || undefined;
+
+  // Allow either a query or a thread ID (thread resumption has no query)
+  if (!query && !threadId) {
     notFound();
   }
 
@@ -69,6 +74,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             mode={mode}
             deep={deep}
             fileIds={fileIds}
+            threadId={threadId}
           />
         </Suspense>
       </ErrorBoundary>

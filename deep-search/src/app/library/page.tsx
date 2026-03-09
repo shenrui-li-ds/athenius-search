@@ -25,6 +25,8 @@ import {
   recoverSearchFromHistory,
   type SearchHistoryEntry
 } from '@/lib/supabase/database';
+import { getUserThreads, bookmarkThread, deleteThread, cleanupEmptyThreads } from '@/lib/supabase/threads';
+import type { SearchThread } from '@/lib/supabase/database';
 
 // Raw time calculation - returns { type, count } for translation
 function getTimeAgoData(dateString: string): { type: 'justNow' | 'minutesAgo' | 'hoursAgo' | 'daysAgo' | 'date', count?: number, date?: Date } {
@@ -363,7 +365,7 @@ interface PendingDeletion {
   timeoutId: NodeJS.Timeout;
 }
 
-type LibraryTab = 'history' | 'favorites' | 'deleted';
+type LibraryTab = 'history' | 'favorites' | 'deleted' | 'threads';
 
 // Deleted History Item Component (with recover option)
 interface DeletedHistoryItemProps {
@@ -479,6 +481,151 @@ function DeletedHistoryItem({ entry, onRecover, isPendingRecover }: DeletedHisto
   );
 }
 
+// Thread Card Component
+interface ThreadCardProps {
+  thread: SearchThread;
+  onToggleBookmark: (id: string) => void;
+  onDelete: (id: string) => void;
+}
+
+function ThreadCard({ thread, onToggleBookmark, onDelete }: ThreadCardProps) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const t = useTranslations('library');
+  const tCommon = useTranslations('common');
+  const locale = useLocale();
+
+  const handleMenuDelete = () => {
+    onDelete(thread.id);
+    setIsMenuOpen(false);
+  };
+
+  const handleMenuBookmark = () => {
+    onToggleBookmark(thread.id);
+    setIsMenuOpen(false);
+  };
+
+  // Menu content (shared between dropdown and bottom sheet)
+  const menuItems = (
+    <>
+      <button
+        onClick={handleMenuDelete}
+        className="w-full flex items-center gap-3 py-2 px-3 bg-[var(--card)] text-rose-500 hover:bg-[var(--card-hover)] rounded-lg transition-colors"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+        <span>{tCommon('delete')}</span>
+      </button>
+      <button
+        onClick={handleMenuBookmark}
+        className={`w-full flex items-center gap-3 py-2 px-3 rounded-lg transition-colors ${
+          thread.bookmarked
+            ? 'bg-amber-500/10 text-amber-500 hover:bg-amber-500/20'
+            : 'bg-[var(--card)] text-[var(--text-secondary)] hover:bg-[var(--card-hover)]'
+        }`}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill={thread.bookmarked ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+        </svg>
+        <span>{thread.bookmarked ? t('removeBookmark') : t('bookmark')}</span>
+      </button>
+    </>
+  );
+
+  return (
+    <>
+      <div className="flex items-start gap-3 p-4 bg-[var(--background)] hover:bg-[var(--card)] transition-colors rounded-lg">
+        {/* Thread Icon */}
+        <div className="relative w-8 h-8 rounded-full bg-[var(--card)] flex items-center justify-center flex-shrink-0 mt-0.5">
+          <svg className="h-4 w-4 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          {/* Bookmark indicator */}
+          {thread.bookmarked && (
+            <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+              </svg>
+            </div>
+          )}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <Link href={`/search?thread=${thread.id}`} className="block">
+            <h3 className="text-[var(--text-primary)] font-medium truncate hover:text-[var(--accent)] transition-colors">
+              {thread.title}
+            </h3>
+          </Link>
+          <div className="flex items-center gap-2 mt-1.5">
+            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">
+              {t('threadMessages', { count: thread.message_count })}
+            </span>
+            <span className="text-xs text-[var(--text-muted)]">&bull;</span>
+            <span className="text-xs text-[var(--text-muted)]">
+              {thread.updated_at ? formatTimeAgoWithT(thread.updated_at, t as TranslatorFn, locale) : ''}
+            </span>
+          </div>
+        </div>
+
+        {/* More options button - Desktop: Dropdown */}
+        <div className="hidden md:block flex-shrink-0">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="p-2 text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--card)] rounded-lg transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                </svg>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem
+                onClick={handleMenuDelete}
+                className="text-rose-500 focus:text-rose-500 focus:bg-rose-500/10 cursor-pointer"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                {tCommon('delete')}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleMenuBookmark}
+                className={`cursor-pointer ${thread.bookmarked ? 'text-amber-500 focus:text-amber-500 focus:bg-amber-500/10' : ''}`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill={thread.bookmarked ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                </svg>
+                {thread.bookmarked ? t('removeBookmark') : t('bookmark')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* More options button - Mobile: Opens bottom sheet */}
+        <button
+          onClick={() => setIsMenuOpen(true)}
+          className="md:hidden p-2 text-[var(--text-muted)] hover:text-[var(--text-secondary)] flex-shrink-0"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Mobile bottom sheet menu */}
+      <MobileBottomSheet
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        title={t('options')}
+      >
+        <div className="space-y-1.5">
+          {menuItems}
+        </div>
+      </MobileBottomSheet>
+    </>
+  );
+}
+
 export default function LibraryPage() {
   const [activeTab, setActiveTab] = useState<LibraryTab>('history');
   const [searchTerm, setSearchTerm] = useState('');
@@ -488,15 +635,21 @@ export default function LibraryPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [favoritesCount, setFavoritesCount] = useState(0);
   const [deletedCount, setDeletedCount] = useState(0);
+  const [threads, setThreads] = useState<SearchThread[] | undefined>(undefined);
+  const [threadsCount, setThreadsCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(null);
   const t = useTranslations('library');
+  const locale = useLocale();
 
   const loadHistory = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
+
+      // Clean up empty threads older than 1 hour (fire-and-forget)
+      cleanupEmptyThreads().catch(err => console.error('Failed to clean up empty threads:', err));
 
       if (searchTerm) {
         const results = await searchHistoryFn(searchTerm, 100);
@@ -505,13 +658,14 @@ export default function LibraryPage() {
         setFavorites(results.filter(e => e.bookmarked));
         // Note: Search doesn't apply to deleted items
       } else {
-        const [historyResults, historyCount, bookmarkedResults, bookmarkedCount, deletedResults, deletedCountResult] = await Promise.all([
+        const [historyResults, historyCount, bookmarkedResults, bookmarkedCount, deletedResults, deletedCountResult, threadResults] = await Promise.all([
           getSearchHistory(100),
           getSearchHistoryCount(),
           getBookmarkedSearches(100),
           getBookmarkedCount(),
           getDeletedSearchHistory(100),
-          getDeletedSearchCount()
+          getDeletedSearchCount(),
+          getUserThreads()
         ]);
         setHistory(historyResults);
         setTotalCount(historyCount);
@@ -519,6 +673,8 @@ export default function LibraryPage() {
         setFavoritesCount(bookmarkedCount);
         setDeleted(deletedResults);
         setDeletedCount(deletedCountResult);
+        setThreads(threadResults);
+        setThreadsCount(threadResults.length);
       }
     } catch (err) {
       console.error('Error loading history:', err);
@@ -696,6 +852,27 @@ export default function LibraryPage() {
     }
   }, [deleted]);
 
+  const handleToggleThreadBookmark = useCallback(async (threadId: string) => {
+    try {
+      const newStatus = await bookmarkThread(threadId);
+      setThreads(prev => prev?.map(t =>
+        t.id === threadId ? { ...t, bookmarked: newStatus } : t
+      ));
+    } catch (err) {
+      console.error('Error toggling thread bookmark:', err);
+    }
+  }, []);
+
+  const handleDeleteThread = useCallback(async (threadId: string) => {
+    try {
+      await deleteThread(threadId);
+      setThreads(prev => prev?.filter(t => t.id !== threadId));
+      setThreadsCount(prev => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error('Error deleting thread:', err);
+    }
+  }, []);
+
   return (
     <MainLayout>
       <div className="max-w-4xl mx-auto px-4 py-8">
@@ -770,6 +947,24 @@ export default function LibraryPage() {
               {t('deleted')}
               {deletedCount > 0 && (
                 <span className="text-xs text-[var(--text-muted)]">({deletedCount})</span>
+              )}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('threads')}
+            className={`pb-3 text-sm font-medium transition-colors relative border-b-2 ${
+              activeTab === 'threads'
+                ? 'border-[var(--accent)] text-[var(--accent)]'
+                : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+            }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+              {t('threads')}
+              {threadsCount > 0 && (
+                <span className="text-xs text-[var(--text-muted)]">({threadsCount})</span>
               )}
             </span>
           </button>
@@ -883,7 +1078,7 @@ export default function LibraryPage() {
               ))}
             </div>
           )
-        ) : (
+        ) : activeTab === 'deleted' ? (
           // Deleted Tab Content
           <>
             {/* Retention notice */}
@@ -916,7 +1111,51 @@ export default function LibraryPage() {
               </div>
             )}
           </>
-        )}
+        ) : activeTab === 'threads' ? (
+          // Threads Tab Content
+          threads && threads.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[var(--card)] flex items-center justify-center">
+                <svg className="h-8 w-8 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">
+                {t('emptyThreads')}
+              </h3>
+              <p className="text-[var(--text-muted)] mb-6">
+                {t('emptyThreadsDescription')}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {/* Bookmarked Threads */}
+              {(threads?.filter(th => th.bookmarked).length ?? 0) > 0 && (
+                <>
+                  <p className="text-xs text-[var(--text-muted)] mb-2 px-4">{t('bookmarks')}</p>
+                  {threads?.filter(th => th.bookmarked).map(thread => (
+                    <ThreadCard
+                      key={thread.id}
+                      thread={thread}
+                      onToggleBookmark={handleToggleThreadBookmark}
+                      onDelete={handleDeleteThread}
+                    />
+                  ))}
+                  <div className="border-b border-[var(--border)] my-3" />
+                </>
+              )}
+              {/* Non-bookmarked Threads */}
+              {threads?.filter(th => !th.bookmarked).map(thread => (
+                <ThreadCard
+                  key={thread.id}
+                  thread={thread}
+                  onToggleBookmark={handleToggleThreadBookmark}
+                  onDelete={handleDeleteThread}
+                />
+              ))}
+            </div>
+          )
+        ) : null}
       </div>
 
       {/* Undo Toast - use stable key so it updates rather than remounts on quick deletes */}

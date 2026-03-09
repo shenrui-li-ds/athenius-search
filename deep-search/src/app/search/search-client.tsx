@@ -26,6 +26,20 @@ function simpleHash(str: string): string {
 import { Card } from '@/components/ui/card';
 import { cleanupFinalContent } from '@/lib/text-cleanup';
 import { addSearchToHistory, toggleBookmark } from '@/lib/supabase/database';
+import ThreadView from '@/components/ThreadView';
+import { createThread, getThread, getThreadMessages, addMessage, updateThreadSummary } from '@/lib/supabase/threads';
+// Thread summary generated via API route (server-side LLM access)
+async function generateThreadSummaryViaAPI(previousSummary: string | null, latestQuery: string, latestContent: string): Promise<string> {
+  const res = await fetch('/api/thread-summary', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ previousSummary, latestQuery, latestContent }),
+  });
+  if (!res.ok) throw new Error('Failed to generate thread summary');
+  const data = await res.json();
+  return data.summary;
+}
+import type { ThreadMessage } from '@/lib/supabase/database';
 
 interface SearchClientProps {
   query: string;
@@ -33,11 +47,12 @@ interface SearchClientProps {
   mode?: 'web' | 'pro' | 'brainstorm';
   deep?: boolean;
   fileIds?: string[];
+  threadId?: string;
 }
 
 type LoadingStage = 'refining' | 'searching' | 'summarizing' | 'proofreading' | 'complete' | 'planning' | 'researching' | 'extracting' | 'synthesizing' | 'reframing' | 'exploring' | 'ideating' | 'analyzing_gaps' | 'deepening';
 
-export default function SearchClient({ query, provider = 'deepseek', mode = 'web', deep = false, fileIds = [] }: SearchClientProps) {
+export default function SearchClient({ query, provider = 'deepseek', mode = 'web', deep = false, fileIds = [], threadId }: SearchClientProps) {
   const [loadingStage, setLoadingStage] = useState<LoadingStage>('searching');
   const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
   const [streamingContent, setStreamingContent] = useState<string>('');
@@ -63,6 +78,14 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
   // Web search thinking state
   const [searchIntent, setSearchIntent] = useState<string | null>(null);
   const [refinedQuery, setRefinedQuery] = useState<string | null>(null);
+  // Thread state
+  const [currentThreadId, setCurrentThreadId] = useState<string | null>(threadId || null);
+  const [threadSummary, setThreadSummary] = useState<string | null>(null);
+  const [threadMessages, setThreadMessages] = useState<ThreadMessage[]>([]);
+  const [threadTitle, setThreadTitle] = useState<string>('');
+  const [threadMessageCount, setThreadMessageCount] = useState<number>(0);
+  const [isFollowUpInProgress, setIsFollowUpInProgress] = useState<boolean>(false);
+  const [streamingQuery, setStreamingQuery] = useState<string>('');
   const router = useRouter();
 
   // Ref to track content for batched updates
@@ -124,6 +147,39 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       // localStorage not available
     }
   }, []); // Run once on mount
+
+  // Thread resumption (T018): Load thread when threadId exists and no query
+  useEffect(() => {
+    if (!threadId || query) return; // Only resume if thread param and no query
+
+    let isActive = true;
+
+    const loadThread = async () => {
+      try {
+        const thread = await getThread(threadId);
+        if (!isActive || !thread) return;
+
+        setThreadTitle(thread.title);
+        setThreadSummary(thread.thread_summary);
+        setThreadMessageCount(thread.message_count);
+        setCurrentThreadId(thread.id);
+
+        const messages = await getThreadMessages(threadId);
+        if (!isActive) return;
+
+        setThreadMessages(messages);
+        setLoadingStage('complete');
+      } catch (err) {
+        console.error('Failed to load thread:', err);
+        setError('Failed to load thread');
+        setLoadingStage('complete');
+      }
+    };
+
+    loadThread();
+
+    return () => { isActive = false; };
+  }, [threadId, query]);
 
   // Stream content from a response
   // Returns { content, interrupted } - interrupted=true if stream ended without done:true
@@ -1453,7 +1509,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           fetch('/api/refine', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query, provider }),
+            body: JSON.stringify({ query, provider, threadContext: threadSummary || undefined }),
             signal: abortController.signal
           }).then(res => res.ok ? res.json() : { refinedQuery: query }).catch(() => ({ refinedQuery: query })),
           fetch('/api/check-limit', {
@@ -1610,7 +1666,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             query,
             results: searchData.rawResults.results,
             stream: true,
-            provider
+            provider,
+            threadContext: threadSummary || undefined,
           }),
           signal: abortController.signal
         });
@@ -1684,19 +1741,65 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         });
         setLoadingStage('complete');
 
-        // Save to search history and capture the entry ID
-        addSearchToHistory({
-          query,
-          provider,
-          mode: mode as 'web' | 'pro' | 'brainstorm',
-          sources_count: fetchedSources.length,
-          deep: false // Web mode doesn't use deep research
-        }).then(entry => {
-          if (entry?.id) {
-            setHistoryEntryId(entry.id);
-            setIsBookmarked(entry.bookmarked || false);
+        // Thread: Create thread and save message (web mode only, T015)
+        // Note: Web mode skips addSearchToHistory — the thread is the persistent record
+        if (mode === 'web' && !currentThreadId) {
+          try {
+            const thread = await createThread({
+              title: query.slice(0, 60),
+              provider,
+            });
+            if (thread) {
+              setCurrentThreadId(thread.id);
+              setThreadTitle(thread.title);
+              setThreadMessageCount(1);
+
+              // Set up initial thread message in state (optimistic, before DB save)
+              setThreadMessages([{
+                id: 'initial',
+                thread_id: thread.id,
+                sequence_num: 1,
+                query,
+                refined_query: searchQuery !== query ? searchQuery : null,
+                provider,
+                content: cleanedContent,
+                sources: fetchedSources as unknown[],
+                images: fetchedImages as unknown[],
+                search_intent: refineResult.searchIntent || null,
+                created_at: new Date().toISOString(),
+              }]);
+
+              // Update URL to include thread ID (without page reload)
+              const url = new URL(window.location.href);
+              url.searchParams.set('thread', thread.id);
+              router.replace(url.pathname + url.search, { scroll: false });
+
+              // Save first message (non-blocking — message already in UI)
+              addMessage({
+                thread_id: thread.id,
+                sequence_num: 1,
+                query,
+                refined_query: searchQuery !== query ? searchQuery : undefined,
+                provider,
+                content: cleanedContent,
+                sources: fetchedSources,
+                images: fetchedImages,
+                search_intent: refineResult.searchIntent || undefined,
+              }).catch(err => console.error('Failed to save first thread message:', err instanceof Error ? err.message : err));
+
+              // Generate summary fire-and-forget
+              generateThreadSummaryViaAPI(null, query, cleanedContent)
+                .then(summary => {
+                  updateThreadSummary(thread.id, summary).catch(console.error);
+                  setThreadSummary(summary);
+                })
+                .catch(console.error);
+            }
+          } catch (err) {
+            console.error('Failed to create thread:', err);
+            // Thread creation failure is non-fatal - search still works
           }
-        }).catch(err => console.error('Failed to save to history:', err));
+        }
 
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
@@ -1743,6 +1846,221 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       console.error('Failed to toggle bookmark:', err);
     }
   }, [historyEntryId]);
+
+  // Helper to finalize credits (standalone version for follow-ups)
+  const finalizeCreditsFn = useCallback((reservationId: string | undefined, actualCredits: number) => {
+    if (!reservationId) return;
+    const storageKey = `pending_finalize_${reservationId}`;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({ reservationId, actualCredits, timestamp: Date.now() }));
+    } catch { /* localStorage not available */ }
+    fetch('/api/finalize-credits', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reservationId, actualCredits })
+    }).then(res => {
+      if (res.ok) { try { localStorage.removeItem(storageKey); } catch { /* ignore */ } }
+    }).catch(err => console.error('Failed to finalize credits:', err));
+  }, []);
+
+  // Helper to cancel reservation (standalone version for follow-ups)
+  const cancelReservationFn = useCallback((reservationId: string | undefined) => {
+    if (!reservationId) return;
+    fetch('/api/finalize-credits', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reservationId })
+    }).catch(err => console.error('Failed to cancel reservation:', err));
+  }, []);
+
+  // Follow-up search handler (T016)
+  const handleFollowUp = useCallback(async (followUpQuery: string) => {
+    if (isFollowUpInProgress || !currentThreadId) return;
+    if (threadMessageCount >= 20) return; // T019: Enforce 20-message limit
+
+    setIsFollowUpInProgress(true);
+    setStreamingQuery(followUpQuery);
+    setLoadingStage('refining');
+    setStreamCompleted(false);
+    setStreamingContent('');
+    contentRef.current = '';
+    setSources([]);
+    setImages([]);
+    setSearchIntent(null);
+    setRefinedQuery(null);
+    setError(null);
+    setErrorType(null);
+
+    let reservationId: string | undefined;
+
+    try {
+      // Step 1: Refine with threadContext + check limits in parallel
+      const [refineResult, limitCheck] = await Promise.all([
+        fetch('/api/refine', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: followUpQuery, provider, threadContext: threadSummary || undefined }),
+        }).then(res => res.ok ? res.json() : { refinedQuery: followUpQuery }).catch(() => ({ refinedQuery: followUpQuery })),
+        fetch('/api/check-limit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'web' }),
+        }).then(res => res.json()),
+      ]);
+
+      if (!limitCheck.allowed) {
+        setError(limitCheck.reason || 'Rate limited');
+        setErrorType(limitCheck.isCreditsError ? 'credits_insufficient' : 'rate_limited');
+        setLoadingStage('complete');
+        setIsFollowUpInProgress(false);
+        setStreamingQuery('');
+        return;
+      }
+
+      reservationId = limitCheck.reservationId;
+      const searchQuery = refineResult.refinedQuery || followUpQuery;
+
+      if (refineResult.searchIntent) setSearchIntent(refineResult.searchIntent);
+      setRefinedQuery(searchQuery);
+
+      // Step 2: Search
+      setLoadingStage('searching');
+      const searchResponse = await fetch('/api/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: searchQuery, searchDepth: 'basic', maxResults: 10 }),
+      });
+
+      if (!searchResponse.ok) throw new Error('Search failed');
+
+      const searchData = await searchResponse.json();
+      const fetchedSources = searchData.sources || [];
+      const fetchedImages = searchData.images || [];
+
+      if (fetchedSources.length === 0) {
+        setError('No search results found');
+        setLoadingStage('complete');
+        setIsFollowUpInProgress(false);
+        setStreamingQuery('');
+        cancelReservationFn(reservationId);
+        return;
+      }
+
+      setSources(fetchedSources);
+      setImages(fetchedImages);
+
+      // Step 3: Summarize with threadContext
+      setLoadingStage('summarizing');
+      const summarizeResponse = await fetch('/api/summarize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: followUpQuery,
+          results: searchData.rawResults.results,
+          stream: true,
+          provider,
+          threadContext: threadSummary || undefined,
+        }),
+      });
+
+      if (!summarizeResponse.ok) throw new Error('Summarization failed');
+
+      let summarizedContent = '';
+      const { interrupted } = await streamResponse(
+        summarizeResponse,
+        (content) => {
+          contentRef.current = content;
+          scheduleContentUpdate();
+        },
+        (fullContent) => {
+          if (updateTimeoutRef.current) {
+            clearTimeout(updateTimeoutRef.current);
+            updateTimeoutRef.current = null;
+          }
+          summarizedContent = fullContent;
+          setStreamingContent(cleanupFinalContent(fullContent));
+        }
+      );
+
+      const cleanedContent = cleanupFinalContent(summarizedContent);
+
+      // Finalize credits
+      finalizeCreditsFn(reservationId, searchData.cached ? 0 : 1);
+
+      if (interrupted) {
+        // T021: On stream failure, don't save partial message
+        setLoadingStage('complete');
+        setIsFollowUpInProgress(false);
+        setStreamingQuery('');
+        return;
+      }
+
+      setStreamCompleted(true);
+
+      // Add to local state optimistically (before DB save)
+      const newSequenceNum = threadMessageCount + 1;
+      const newMessage: ThreadMessage = {
+        id: `msg-${newSequenceNum}`,
+        thread_id: currentThreadId,
+        sequence_num: newSequenceNum,
+        query: followUpQuery,
+        refined_query: searchQuery !== followUpQuery ? searchQuery : null,
+        provider,
+        content: cleanedContent,
+        sources: fetchedSources as unknown[],
+        images: fetchedImages as unknown[],
+        search_intent: refineResult.searchIntent || null,
+        created_at: new Date().toISOString(),
+      };
+      setThreadMessages(prev => [...prev, newMessage]);
+      setThreadMessageCount(newSequenceNum);
+
+      // Clear streaming state after message is in threadMessages
+      setLoadingStage('complete');
+      setIsFollowUpInProgress(false);
+      setStreamingContent('');
+      setStreamingQuery('');
+
+      // Save message to thread (non-blocking)
+      try {
+        await addMessage({
+          thread_id: currentThreadId,
+          sequence_num: newSequenceNum,
+          query: followUpQuery,
+          refined_query: searchQuery !== followUpQuery ? searchQuery : undefined,
+          provider,
+          content: cleanedContent,
+          sources: fetchedSources,
+          images: fetchedImages,
+          search_intent: refineResult.searchIntent || undefined,
+        });
+      } catch (err) {
+        console.error('Failed to save thread message:', err instanceof Error ? err.message : err);
+        // Message is already in UI — DB save failure is non-fatal
+      }
+
+      // Update summary fire-and-forget (T021: on failure, fall back to last summary)
+      generateThreadSummaryViaAPI(threadSummary, followUpQuery, cleanedContent)
+        .then(summary => {
+          updateThreadSummary(currentThreadId, summary).catch(console.error);
+          setThreadSummary(summary);
+        })
+        .catch(console.error);
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        cancelReservationFn(reservationId);
+        return;
+      }
+      console.error('Follow-up error:', err);
+      cancelReservationFn(reservationId);
+      const errType = detectErrorType(err);
+      setErrorType(errType);
+      setError(errorMessages[errType].message);
+      setLoadingStage('complete');
+      setIsFollowUpInProgress(false);
+      setStreamingQuery('');
+    }
+  }, [currentThreadId, threadSummary, threadMessageCount, isFollowUpInProgress, provider, streamResponse, scheduleContentUpdate, finalizeCreditsFn, cancelReservationFn]);
 
   if (error) {
     // Get error info from type or fallback to defaults
@@ -1832,8 +2150,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     );
   }
 
-  // Show "no results" only when complete and no result/sources
-  if (loadingStage === 'complete' && !searchResult && sources.length === 0) {
+  // Show "no results" only when complete and no result/sources (not in thread view)
+  if (loadingStage === 'complete' && !searchResult && sources.length === 0 && threadMessages.length === 0) {
     return (
       <div className="max-w-4xl mx-auto p-6">
         <Card className="p-8 text-center">
@@ -1852,8 +2170,34 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     );
   }
 
-  // Use a single SearchResultComponent for summarizing, proofreading, and complete stages
-  // This prevents component remounting which causes visual flash
+  // Web mode: always render ThreadView (first search streams directly into thread UI)
+  if (mode === 'web') {
+    // First search is streaming when no thread exists yet and search is in progress
+    const isFirstSearchStreaming = !currentThreadId && loadingStage !== 'complete';
+    const isStreamingInThread = isFirstSearchStreaming || (isFollowUpInProgress && loadingStage !== 'complete');
+
+    return (
+      <ThreadView
+        threadId={currentThreadId}
+        title={threadTitle || query}
+        messages={threadMessages}
+        messageCount={threadMessageCount}
+        provider={provider}
+        isStreaming={isStreamingInThread}
+        loadingStage={loadingStage}
+        streamingContent={streamingContent}
+        streamingSources={sources}
+        streamingImages={images}
+        streamingSearchIntent={searchIntent}
+        streamingRefinedQuery={refinedQuery}
+        onFollowUp={handleFollowUp}
+        isFollowUpDisabled={!currentThreadId || isFollowUpInProgress}
+        streamingQuery={isFirstSearchStreaming ? query : streamingQuery}
+      />
+    );
+  }
+
+  // Pro/Brainstorm: use SearchResultComponent
   const displayContent = loadingStage === 'complete' && searchResult
     ? searchResult.content
     : streamingContent;
@@ -1866,7 +2210,6 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     ? searchResult.images
     : images;
 
-  // Determine loading state indicators
   const isSearching = loadingStage === 'refining' || loadingStage === 'searching' || loadingStage === 'planning' || loadingStage === 'researching' || loadingStage === 'extracting' || loadingStage === 'reframing' || loadingStage === 'exploring' || loadingStage === 'analyzing_gaps' || loadingStage === 'deepening';
   const isStreaming = loadingStage === 'summarizing' || loadingStage === 'synthesizing' || loadingStage === 'ideating';
   const isPolishing = loadingStage === 'proofreading';

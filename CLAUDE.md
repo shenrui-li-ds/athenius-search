@@ -498,14 +498,14 @@ SELECT * FROM admin_user_credits;
 ### Rate Limits (Security)
 Search and token limits are enforced for abuse prevention, separate from billing:
 
-| Limit | Free Tier | Pro Tier | Reset |
-|-------|-----------|----------|-------|
-| Daily searches | 50 | 50 | Midnight |
-| Monthly searches | 1,000 | 1,000 | 1st of month |
-| Daily tokens | 50,000 | 200,000 | Midnight |
-| Monthly tokens | 500,000 | 5,000,000 | 1st of month |
+| Limit | Free Tier | Pro Tier | Admin Tier | Reset |
+|-------|-----------|----------|------------|-------|
+| Daily searches | 50 | 100 | Unlimited | Midnight |
+| Monthly searches | 1,000 | 5,000 | Unlimited | 1st of month |
+| Daily tokens | 50,000 | 200,000 | Unlimited | Midnight |
+| Monthly tokens | 500,000 | 5,000,000 | Unlimited | 1st of month |
 
-Admin tier has unlimited token limits. These limits apply regardless of available credits. Prevents bad actors from abusing the system.
+Admin tier has unlimited search and token limits. These limits apply regardless of available credits. Prevents bad actors from abusing the system.
 
 ### Unified Check Model
 Every search request goes through a single atomic check in `/api/check-limit` using the `reserve_and_authorize_search()` RPC:
@@ -669,6 +669,8 @@ GEMINI_API_KEY=
 - Existing Supabase cache (no schema changes) (001-academic-paper-search)
 - TypeScript 5.x / Next.js 15.2 (App Router) + React 19, next-intl, react-markdown, Tailwind CSS 4 (002-deep-research-quality)
 - N/A (all changes are in-memory, per-session only) (002-deep-research-quality)
+- Supabase (search_threads + thread_messages tables), existing web search pipeline, thread-context.ts for summary generation (004-threaded-search)
 
 ## Recent Changes
 - 001-academic-paper-search: Added TypeScript 5.x (Next.js 15.2 App Router) + Next.js 15.2, React 19, existing `api-utils.ts` utilities
+- 004-threaded-search: Added threaded conversational search for Web mode — persistent threads with rolling context summaries, per-message citations, thread resumption from Library

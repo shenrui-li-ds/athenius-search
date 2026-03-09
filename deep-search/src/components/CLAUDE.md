@@ -337,6 +337,65 @@ The reframe API generates 4-6 unexpected angles from diverse domains:
 ### `SearchLoading.tsx`
 Loading skeleton for search results.
 
+### `ThreadMessage.tsx`
+Renders a single Q&A pair in a thread: user query bubble + compact SearchResult response card.
+
+**Props:**
+```typescript
+{
+  query: string;
+  refinedQuery?: string | null;
+  searchIntent?: string | null;
+  content: string;
+  sources: Source[];
+  images?: SearchImage[];
+  provider?: string;
+  isLatest?: boolean;      // Shows streaming state if true
+  isStreaming?: boolean;
+  loadingStage?: string;
+  sequenceNum: number;
+}
+```
+
+**Features:**
+- User query displayed in a right-aligned chat bubble with 15px font
+- Response uses `SearchResult` in `compact` mode (no tabs, action bar, related searches, follow-up)
+- Only the latest message shows streaming indicators (including `refining` stage)
+- Per-message citation numbering (each message restarts at [1])
+
+### `ThreadView.tsx`
+Full thread view with message list and follow-up input. **Web mode renders ThreadView directly from the first search** — no transition from SearchResultComponent. First search streams with full progress UI (refining → searching → summarizing) inside the thread.
+
+**Props:**
+```typescript
+{
+  threadId: string | null;  // null during first search, set after thread persisted
+  title: string;
+  messages: ThreadMessage[];
+  messageCount: number;
+  provider?: string;
+  isStreaming?: boolean;
+  loadingStage?: string;
+  streamingContent?: string;
+  streamingSources?: Source[];
+  streamingImages?: SearchImage[];
+  streamingSearchIntent?: string | null;
+  streamingRefinedQuery?: string | null;
+  onFollowUp: (query: string) => void;
+  isFollowUpDisabled?: boolean;  // true when threadId is null or follow-up in progress
+  streamingQuery?: string;
+}
+```
+
+**Features:**
+- Scrollable message list using ThreadMessage components
+- First search streams directly into thread (no SearchResultComponent transition)
+- Follow-up input disabled until first search completes and thread is persisted
+- Thread limit banner at 20 messages (amber styling)
+- Fixed-bottom follow-up input with backdrop blur, focus shadow, and micro-interactions
+- Auto-scrolls to bottom on new messages/streaming
+- Responsive design for mobile and desktop
+
 ## UI Components (`ui/`)
 
 shadcn/ui components. Do not modify directly - regenerate using shadcn CLI if needed.
@@ -582,11 +641,15 @@ MainLayout
 ├── Sidebar (fixed left)
 └── main content (ml-[72px])
     └── SearchClient (in /search)
-        └── SearchResult
+        ├── [Web mode] ThreadView (rendered directly from first search)
+        │   ├── ThreadMessage × N (completed messages)
+        │   │   ├── User Query Bubble (right-aligned)
+        │   │   └── SearchResult (compact mode)
+        │   ├── ThreadMessage (streaming, if active)
+        │   └── Follow-up Input (fixed bottom, backdrop blur)
+        └── [Pro/Brainstorm] SearchResult
             ├── Status Banner
-            ├── Web Search Thinking Panel (web mode, collapsible)
-            ├── Research Thinking Panel (pro mode, collapsible)
-            ├── Brainstorm Thinking Panel (brainstorm mode, collapsible)
+            ├── Research/Brainstorm Thinking Panel (collapsible)
             ├── Tabs (Answer, Links)
             ├── Action Bar
             ├── Related Searches
@@ -600,11 +663,12 @@ MainLayout
 ├── MobileSidebar (slide-out drawer, swipe-to-close)
 └── main content (pt-14)
     └── SearchClient (in /search)
-        └── SearchResult
+        ├── [Web mode] ThreadView (rendered directly from first search)
+        │   ├── ThreadMessage × N
+        │   └── Follow-up Input (fixed bottom)
+        └── [Pro/Brainstorm] SearchResult
             ├── Status Banner
-            ├── Web Search Thinking Panel (web mode, collapsible)
-            ├── Research Thinking Panel (pro mode, collapsible)
-            ├── Brainstorm Thinking Panel (brainstorm mode, collapsible)
+            ├── Thinking Panel (collapsible)
             ├── Tabs (Answer, Links)
             ├── Action Bar
             ├── Related Searches

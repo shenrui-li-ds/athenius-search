@@ -21,7 +21,7 @@ interface SynthesisCache {
 
 export async function POST(req: NextRequest) {
   try {
-    const { query, results, stream = true, provider } = await req.json();
+    const { query, results, stream = true, provider, threadContext } = await req.json();
     const llmProvider = provider as LLMProvider | undefined;
 
     // Note: Usage limits are checked upfront by /api/check-limit before the search flow starts.
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
 
     // Create the complete prompt with query, date, language, and search results
     const completePrompt = `
-${summarizeSearchResultsPrompt(query, currentDate, detectedLanguage)}
+${summarizeSearchResultsPrompt(query, currentDate, detectedLanguage, threadContext)}
 <searchResults>
 ${formattedResults}
 </searchResults>

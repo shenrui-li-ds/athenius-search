@@ -109,7 +109,9 @@
       "comingSoon": "(coming soon)",
       "attachFiles": "Attach files"
     },
-    "followUp": "Ask a follow-up",
+    "followUp": "Ask a follow-up...",
+    "threadLimitTitle": "Thread limit reached",
+    "threadLimitDescription": "This thread has reached the 20-message limit. Start a new search to continue exploring.",
     "incomplete": {
       "title": "Response may be incomplete",
       "description": "The connection was interrupted. Try refreshing or searching again.",
@@ -182,7 +184,11 @@
     "justNow": "Just now",
     "minutesAgo": "{count}m ago",
     "hoursAgo": "{count}h ago",
-    "daysAgo": "{count}d ago"
+    "daysAgo": "{count}d ago",
+    "threads": "Threads",
+    "emptyThreads": "No threads yet",
+    "emptyThreadsDescription": "Start a web search and ask follow-up questions to create a thread",
+    "threadMessages": "{count} messages"
   },
   "account": {
     "title": "Account",

@@ -20,6 +20,12 @@ html.light {
   --app-icon-filter: brightness(0) saturate(100%) invert(21%) sepia(10%) saturate(763%) hue-rotate(182deg) brightness(95%) contrast(91%); /* gray-700 */
 }
 
+/* Thread user query bubble */
+.thread-query-bubble {
+  background: #f0f0f0;
+  color: #1f1f1f;
+}
+
 html.dark {
   --background: #0f0f0f;
   --foreground: #e5e5e5;
@@ -32,6 +38,11 @@ html.dark {
   --text-secondary: #d1d5db;
   --text-muted: #9ca3af;
   --app-icon-filter: brightness(0) saturate(100%) invert(91%) sepia(4%) saturate(398%) hue-rotate(182deg) brightness(95%) contrast(87%); /* gray-300 to match --text-secondary */
+}
+
+html.dark .thread-query-bubble {
+  background: var(--card);
+  color: var(--text-primary);
 }
 
 body {
