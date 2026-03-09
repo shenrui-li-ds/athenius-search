@@ -30,7 +30,7 @@ interface ThreadViewProps {
   streamingImages?: Array<{
     url: string;
     alt: string;
-    sourceId: string;
+    sourceId?: string;
   }>;
   streamingSearchIntent?: string | null;
   streamingRefinedQuery?: string | null;
