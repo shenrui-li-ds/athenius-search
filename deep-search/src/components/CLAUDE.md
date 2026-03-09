@@ -337,6 +337,63 @@ The reframe API generates 4-6 unexpected angles from diverse domains:
 ### `SearchLoading.tsx`
 Loading skeleton for search results.
 
+### `ThreadMessage.tsx`
+Renders a single Q&A pair in a thread: user query bubble + compact SearchResult response card.
+
+**Props:**
+```typescript
+{
+  query: string;
+  refinedQuery?: string | null;
+  searchIntent?: string | null;
+  content: string;
+  sources: Source[];
+  images?: SearchImage[];
+  provider?: string;
+  isLatest?: boolean;      // Shows streaming state if true
+  isStreaming?: boolean;
+  loadingStage?: string;
+  sequenceNum: number;
+}
+```
+
+**Features:**
+- User query displayed in a left-aligned chat bubble
+- Response uses `SearchResult` in `compact` mode (no tabs, action bar, related searches, follow-up)
+- Only the latest message shows streaming indicators
+- Per-message citation numbering (each message restarts at [1])
+
+### `ThreadView.tsx`
+Full thread view with message list and follow-up input.
+
+**Props:**
+```typescript
+{
+  threadId: string;
+  title: string;
+  messages: ThreadMessage[];
+  messageCount: number;
+  provider?: string;
+  isStreaming?: boolean;
+  loadingStage?: string;
+  streamingContent?: string;
+  streamingSources?: Source[];
+  streamingImages?: SearchImage[];
+  streamingSearchIntent?: string | null;
+  streamingRefinedQuery?: string | null;
+  onFollowUp: (query: string) => void;
+  isFollowUpDisabled?: boolean;
+}
+```
+
+**Features:**
+- Thread header with title and message count
+- Scrollable message list using ThreadMessage components
+- Thread limit banner at 20 messages (amber styling)
+- Fixed-bottom follow-up input (web mode only, no mode selector)
+- Auto-scrolls to bottom on new messages/streaming
+- Responsive design for mobile and desktop
+
 ## UI Components (`ui/`)
 
 shadcn/ui components. Do not modify directly - regenerate using shadcn CLI if needed.

@@ -78,10 +78,10 @@
 
 ### Implementation for User Story 2
 
-- [ ] T022 [US2] Add "Threads" section to Library page: fetch user's threads (sorted by updated_at DESC), display thread cards with title, message count, last updated relative time, bookmark icon in `deep-search/src/app/library/page.tsx`
-- [ ] T023 [US2] Add thread click navigation from Library: clicking a thread card navigates to `/search?thread=<id>` in `deep-search/src/app/library/page.tsx`
-- [ ] T024 [P] [US2] Add thread-related i18n translations (thread titles, message counts, library labels, limit messages, follow-up placeholder) to `deep-search/src/i18n/messages/en.json`
-- [ ] T025 [P] [US2] Add thread-related i18n translations (same keys as en.json) to `deep-search/src/i18n/messages/zh.json`
+- [x] T022 [US2] Add "Threads" section to Library page: fetch user's threads (sorted by updated_at DESC), display thread cards with title, message count, last updated relative time, bookmark icon in `deep-search/src/app/library/page.tsx`
+- [x] T023 [US2] Add thread click navigation from Library: clicking a thread card navigates to `/search?thread=<id>` in `deep-search/src/app/library/page.tsx`
+- [x] T024 [P] [US2] Add thread-related i18n translations (thread titles, message counts, library labels, limit messages, follow-up placeholder) to `deep-search/src/i18n/messages/en.json`
+- [x] T025 [P] [US2] Add thread-related i18n translations (same keys as en.json) to `deep-search/src/i18n/messages/zh.json`
 
 **Checkpoint**: Threads persist across sessions and are accessible from Library. Full persistence flow works end-to-end.
 
@@ -95,9 +95,9 @@
 
 ### Implementation for User Story 3
 
-- [ ] T026 [US3] Implement thread title auto-generation from first query (truncated to 60 characters with ellipsis, immutable after creation) in `deep-search/src/lib/supabase/threads.ts`
-- [ ] T027 [US3] Add bookmark toggle and soft-delete actions to thread cards in Library (bookmarked threads in separate section above non-bookmarked) in `deep-search/src/app/library/page.tsx`
-- [ ] T028 [US3] Add empty thread cleanup: on Library load, delete threads with message_count=0 older than 1 hour in `deep-search/src/app/library/page.tsx`
+- [x] T026 [US3] Implement thread title auto-generation from first query (truncated to 60 characters with ellipsis, immutable after creation) in `deep-search/src/lib/supabase/threads.ts`
+- [x] T027 [US3] Add bookmark toggle and soft-delete actions to thread cards in Library (bookmarked threads in separate section above non-bookmarked) in `deep-search/src/app/library/page.tsx`
+- [x] T028 [US3] Add empty thread cleanup: on Library load, delete threads with message_count=0 older than 1 hour in `deep-search/src/app/library/page.tsx`
 
 **Checkpoint**: Thread management features complete. Users can bookmark, delete, and see auto-generated titles.
 
@@ -108,10 +108,10 @@
 **Purpose**: Documentation updates and migration verification
 
 - [ ] T029 [P] Verify migration rollback SQL executes cleanly (run rollback statements against a test database, then re-apply migration) for `supabase/migrations/add-search-threads.sql`
-- [ ] T030 [P] Update CLAUDE.md Active Technologies and Recent Changes sections with threaded search info in `CLAUDE.md`
-- [ ] T031 [P] Update src/lib/CLAUDE.md with thread-context.ts documentation in `deep-search/src/lib/CLAUDE.md`
-- [ ] T032 [P] Update src/components/CLAUDE.md with ThreadView and ThreadMessage component documentation in `deep-search/src/components/CLAUDE.md`
-- [ ] T033 [P] Update src/lib/supabase/CLAUDE.md with threads.ts CRUD operations documentation in `deep-search/src/lib/supabase/CLAUDE.md`
+- [x] T030 [P] Update CLAUDE.md Active Technologies and Recent Changes sections with threaded search info in `CLAUDE.md`
+- [x] T031 [P] Update src/lib/CLAUDE.md with thread-context.ts documentation in `deep-search/src/lib/CLAUDE.md`
+- [x] T032 [P] Update src/components/CLAUDE.md with ThreadView and ThreadMessage component documentation in `deep-search/src/components/CLAUDE.md`
+- [x] T033 [P] Update src/lib/supabase/CLAUDE.md with threads.ts CRUD operations documentation in `deep-search/src/lib/supabase/CLAUDE.md`
 
 ---
 

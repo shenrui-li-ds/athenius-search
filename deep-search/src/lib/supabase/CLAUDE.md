@@ -257,6 +257,33 @@ trackServerApiUsage({
 | `estimateTokens(text)` | Estimate tokens (4 chars ≈ 1 token) |
 | `checkServerUsageLimits()` | **Deprecated** - Use /api/check-limit instead. All limits are checked atomically at search start. |
 
+### `threads.ts` - Thread CRUD Operations
+
+CRUD operations for threaded conversational search.
+
+```typescript
+import { createThread, getThread, getThreadMessages, addMessage, updateThreadSummary, deleteThread, bookmarkThread, getUserThreads, cleanupEmptyThreads } from '@/lib/supabase/threads';
+```
+
+**Functions:**
+
+| Function | Description |
+|----------|-------------|
+| `createThread(insert)` | Create a new thread (auto-truncates title to 60 chars) |
+| `getThread(id)` | Get thread by ID (excludes soft-deleted) |
+| `getThreadMessages(threadId)` | Get all messages in a thread (ordered by sequence_num) |
+| `addMessage(insert)` | Add a message to a thread |
+| `updateThreadSummary(threadId, summary)` | Update thread's rolling summary (last-write-wins) |
+| `deleteThread(id)` | Soft-delete a thread (sets deleted_at) |
+| `bookmarkThread(id)` | Toggle bookmark status, returns new status |
+| `getUserThreads()` | Get user's threads sorted by updated_at DESC |
+| `cleanupEmptyThreads()` | Delete threads with message_count=0 older than 1 hour |
+
+**Notes:**
+- All operations use Supabase client with RLS (user can only access own threads)
+- `updateThreadSummary` uses last-write-wins semantics (no conflict resolution)
+- Thread messages have `sequence_num` for ordering within a thread
+
 ## Database Schema
 
 Located in `supabase/schema.sql`. Run this in Supabase SQL Editor.

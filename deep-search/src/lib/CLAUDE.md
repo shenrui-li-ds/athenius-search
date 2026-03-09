@@ -617,6 +617,22 @@ Client-side text cleanup utilities.
 - Fix header spacing
 - Normalize whitespace
 
+### `thread-context.ts` - Thread Context Compression
+
+Generates and updates rolling thread summaries for conversational search.
+
+**Key Function:**
+```typescript
+generateThreadSummary(previousSummary: string | null, latestQuery: string, latestContent: string): Promise<string>
+```
+
+**Behavior:**
+- Uses `callLLMWithFallback` at temperature 0.3 for factual compression
+- Truncates latest content to 500 words before sending to LLM
+- Output constrained to < 150 words via prompt instruction
+- Graceful degradation: returns previous summary on failure
+- Called fire-and-forget after each message completes
+
 ### `error-types.ts` - Standardized Error Handling
 
 Categorized error types for consistent user-facing error messages.

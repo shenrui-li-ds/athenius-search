@@ -109,7 +109,9 @@
       "comingSoon": "(即将推出)",
       "attachFiles": "添加文件"
     },
-    "followUp": "提出后续问题",
+    "followUp": "继续提问...",
+    "threadLimitTitle": "对话已达上限",
+    "threadLimitDescription": "此对话已达到20条消息的上限。请开始新的搜索来继续探索。",
     "incomplete": {
       "title": "回答可能不完整",
       "description": "连接已中断，请刷新页面或重新搜索。",
@@ -182,7 +184,11 @@
     "justNow": "刚刚",
     "minutesAgo": "{count}分钟前",
     "hoursAgo": "{count}小时前",
-    "daysAgo": "{count}天前"
+    "daysAgo": "{count}天前",
+    "threads": "对话",
+    "emptyThreads": "还没有对话",
+    "emptyThreadsDescription": "开始搜索并提出后续问题来创建对话",
+    "threadMessages": "{count} 条消息"
   },
   "account": {
     "title": "账号",
