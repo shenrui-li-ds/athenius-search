@@ -69,6 +69,56 @@ export interface UserPreferences {
 }
 
 // ============================================
+// THREAD TYPES (for threaded conversational search)
+// ============================================
+
+export interface SearchThread {
+  id: string;
+  user_id: string;
+  title: string;
+  mode: 'web';
+  provider: string;
+  message_count: number;
+  thread_summary: string | null;
+  bookmarked: boolean;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+export interface ThreadMessage {
+  id: string;
+  thread_id: string;
+  sequence_num: number;
+  query: string;
+  refined_query: string | null;
+  provider: string;
+  content: string | null;
+  sources: unknown[];
+  images: unknown[];
+  search_intent: string | null;
+  created_at: string;
+}
+
+export interface ThreadInsert {
+  title: string;
+  provider: string;
+  mode?: 'web';
+}
+
+export interface ThreadMessageInsert {
+  thread_id: string;
+  sequence_num: number;
+  query: string;
+  refined_query?: string;
+  provider: string;
+  content?: string;
+  sources?: unknown[];
+  images?: unknown[];
+  search_intent?: string;
+}
+
+// ============================================
 // SEARCH HISTORY OPERATIONS
 // ============================================
 

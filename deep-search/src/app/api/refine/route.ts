@@ -43,7 +43,7 @@ function parseRefineResponse(response: string, originalQuery: string): { refined
 
 export async function POST(req: NextRequest) {
   try {
-    const { query, stream = false, provider } = await req.json();
+    const { query, stream = false, provider, threadContext } = await req.json();
     const llmProvider = provider as LLMProvider | undefined;
 
     if (!query) {
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
 
       // Cache miss - call LLM
       const currentDate = getCurrentDate();
-      const prompt = refineSearchQueryPrompt(query, currentDate);
+      const prompt = refineSearchQueryPrompt(query, currentDate, threadContext);
 
       const messages: OpenAIMessage[] = [
         { role: 'system', content: 'You are Athenius, an AI specialized in refining search queries.' },
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
 
     // Streaming mode - don't cache
     const currentDate = getCurrentDate();
-    const prompt = refineSearchQueryPrompt(query, currentDate);
+    const prompt = refineSearchQueryPrompt(query, currentDate, threadContext);
 
     const messages: OpenAIMessage[] = [
       { role: 'system', content: 'You are Athenius, an AI specialized in refining search queries.' },

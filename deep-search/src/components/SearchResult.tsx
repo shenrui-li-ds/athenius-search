@@ -107,9 +107,13 @@ interface SearchResultProps {
   refinedQuery?: string | null;
   // Stream completion state
   streamCompleted?: boolean;
+  // Compact mode for thread messages (hides follow-up, tabs, actions, related)
+  compact?: boolean;
+  // Thread follow-up callback - when provided, follow-up submits via this callback instead of navigating
+  onFollowUp?: (query: string) => void;
 }
 
-const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearches = [], provider = 'deepseek', mode = 'web', deep = false, loadingStage = 'complete', isLoading = false, isSearching = false, isStreaming = false, isPolishing = false, isTransitioning = false, historyEntryId = null, isBookmarked = false, historySaveFailed = false, onToggleBookmark, queryType = null, researchPlan = null, suggestedDepth = null, researchGaps = null, brainstormAngles = null, searchIntent = null, refinedQuery = null, streamCompleted = false }) => {
+const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearches = [], provider = 'deepseek', mode = 'web', deep = false, loadingStage = 'complete', isLoading = false, isSearching = false, isStreaming = false, isPolishing = false, isTransitioning = false, historyEntryId = null, isBookmarked = false, historySaveFailed = false, onToggleBookmark, queryType = null, researchPlan = null, suggestedDepth = null, researchGaps = null, brainstormAngles = null, searchIntent = null, refinedQuery = null, streamCompleted = false, compact = false, onFollowUp: onFollowUpProp }) => {
   const t = useTranslations('search');
   const tCommon = useTranslations('common');
   const [sourcesExpanded, setSourcesExpanded] = useState(false);
@@ -195,13 +199,20 @@ ${sourcesText}
     const trimmedQuery = followUpQuery.trim();
     if (!trimmedQuery) return;
 
+    // If thread callback provided, use it instead of navigating
+    if (onFollowUpProp) {
+      onFollowUpProp(trimmedQuery);
+      setFollowUpQuery('');
+      return;
+    }
+
     const params = new URLSearchParams({
       q: trimmedQuery,
       provider: provider,
       mode: followUpMode
     });
     router.push(`/search?${params.toString()}`);
-  }, [followUpQuery, provider, followUpMode, router]);
+  }, [followUpQuery, provider, followUpMode, router, onFollowUpProp]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -433,7 +444,7 @@ ${sourcesText}
 
         {/* Tabs */}
         <Tabs defaultValue="answer" className="w-full">
-          <div className="flex items-center justify-between border-b border-[var(--border)]">
+          {!compact && <div className="flex items-center justify-between border-b border-[var(--border)]">
             <TabsList>
               <TabsTrigger value="answer">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -523,7 +534,7 @@ ${sourcesText}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-          </div>
+          </div>}
 
           <TabsContent value="answer">
             {/* Query Title */}
@@ -662,7 +673,7 @@ ${sourcesText}
             </div>
 
             {/* Bottom Action Bar */}
-            <div className="mt-8 pt-4 border-t border-[var(--border)] flex items-center gap-2 print:hidden">
+            {!compact && <div className="mt-8 pt-4 border-t border-[var(--border)] flex items-center gap-2 print:hidden">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -724,10 +735,10 @@ ${sourcesText}
                 </svg>
                 <span>{t('results.sourcesCount', { count: result.sources.length })}</span>
               </div>
-            </div>
+            </div>}
 
             {/* Related Searches */}
-            {relatedSearches.length > 0 && (
+            {!compact && relatedSearches.length > 0 && (
               <div className="mt-8">
                 <h3 className="text-sm font-medium text-[var(--text-muted)] mb-3">{t('results.relatedSearches')}</h3>
                 <div className="flex flex-wrap gap-2">
@@ -748,10 +759,10 @@ ${sourcesText}
             )}
 
             {/* Spacer for floating follow-up */}
-            <div className="h-24" />
+            {!compact && <div className="h-24" />}
           </TabsContent>
 
-          <TabsContent value="links">
+          {!compact && <TabsContent value="links">
             <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-4">{t('results.sources')}</h2>
             <div className="space-y-4">
               {result.sources.map((source, index) => (
@@ -812,7 +823,7 @@ ${sourcesText}
 
             {/* Spacer for floating follow-up */}
             <div className="h-24" />
-          </TabsContent>
+          </TabsContent>}
 
         </Tabs>
 
@@ -820,6 +831,7 @@ ${sourcesText}
       </div>
 
       {/* Gradient fade above follow-up input */}
+      {!compact && <>
       <div className="fixed bottom-[52px] left-0 right-0 h-12 bg-gradient-to-t from-[var(--background)] to-transparent pointer-events-none z-30 md:ml-[72px] print:hidden" />
 
       {/* Floating Follow-up Input (both mobile and desktop) */}
@@ -929,6 +941,7 @@ ${sourcesText}
           ))}
         </div>
       </MobileBottomSheet>
+      </>}
     </TooltipProvider>
   );
 };

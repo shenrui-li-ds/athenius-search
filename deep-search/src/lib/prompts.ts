@@ -1,5 +1,14 @@
-export const refineSearchQueryPrompt = (searchTerm: string, currentDate: string) => `
-<refineSearchQuery>
+export const refineSearchQueryPrompt = (searchTerm: string, currentDate: string, threadContext?: string) => `
+${threadContext ? `<thread_context>
+The user is continuing a conversation about a topic. Previously covered:
+${threadContext}
+</thread_context>
+<instruction>
+Optimize the follow-up query for search. Focus on information NOT yet covered
+in the thread context. Avoid generating queries that would return results
+redundant with what the user already knows.
+</instruction>
+` : ''}<refineSearchQuery>
     <description>
         You are an expert at refining search queries for web search engines. Your goal is to optimize the query for better search results while preserving the user's intent.
     </description>
@@ -60,8 +69,17 @@ export const refineSearchQueryPrompt = (searchTerm: string, currentDate: string)
 </refineSearchQuery>
 `;
 
-export const summarizeSearchResultsPrompt = (query: string, currentDate: string, language: string = 'English') => `
-<summarizeSearchResults>
+export const summarizeSearchResultsPrompt = (query: string, currentDate: string, language: string = 'English', threadContext?: string) => `
+${threadContext ? `<thread_context>
+Previous conversation context: ${threadContext}
+</thread_context>
+<instruction>
+Summarize these NEW search results. Build on the established context naturally
+(e.g., "As noted earlier..." or "Expanding on the previous discussion...").
+Do not repeat information already covered. Focus on what's genuinely new.
+Use your own citation numbering starting at [1].
+</instruction>
+` : ''}<summarizeSearchResults>
     <description>
         You are Athenius, an AI model specialized in analyzing search results and crafting clear, scannable summaries. Your goal is to provide informative responses with excellent visual hierarchy.
     </description>
