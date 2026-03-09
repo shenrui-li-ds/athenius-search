@@ -78,7 +78,7 @@ interface SearchResultProps {
     images?: {
       url: string;
       alt: string;
-      sourceId: string;
+      sourceId?: string;
     }[];
   };
   relatedSearches?: string[];
