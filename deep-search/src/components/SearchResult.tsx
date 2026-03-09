@@ -258,7 +258,7 @@ ${sourcesText}
 
   return (
     <TooltipProvider>
-      <div className="max-w-4xl mx-auto px-6 py-8">
+      <div className={`max-w-4xl mx-auto px-6 ${compact ? 'py-2' : 'py-8'}`}>
         {/* Status Banner - only rendered during loading */}
         {(isSearching || isStreaming || isPolishing) && (
           <div className="mb-4 p-3 bg-[var(--accent)]/10 border border-[var(--accent)]/20 rounded-lg flex items-center gap-3">
@@ -537,8 +537,8 @@ ${sourcesText}
           </div>}
 
           <TabsContent value="answer">
-            {/* Query Title */}
-            <h1 className="text-2xl font-semibold text-[var(--text-primary)] mb-4">{query}</h1>
+            {/* Query Title — hidden in compact mode (ThreadMessage bubble shows query) */}
+            {!compact && <h1 className="text-2xl font-semibold text-[var(--text-primary)] mb-4">{query}</h1>}
 
             {/* Sources Pills */}
             <div className="mb-6">

@@ -28,7 +28,17 @@ import { cleanupFinalContent } from '@/lib/text-cleanup';
 import { addSearchToHistory, toggleBookmark } from '@/lib/supabase/database';
 import ThreadView from '@/components/ThreadView';
 import { createThread, getThread, getThreadMessages, addMessage, updateThreadSummary } from '@/lib/supabase/threads';
-import { generateThreadSummary } from '@/lib/thread-context';
+// Thread summary generated via API route (server-side LLM access)
+async function generateThreadSummaryViaAPI(previousSummary: string | null, latestQuery: string, latestContent: string): Promise<string> {
+  const res = await fetch('/api/thread-summary', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ previousSummary, latestQuery, latestContent }),
+  });
+  if (!res.ok) throw new Error('Failed to generate thread summary');
+  const data = await res.json();
+  return data.summary;
+}
 import type { ThreadMessage } from '@/lib/supabase/database';
 
 interface SearchClientProps {
@@ -1733,21 +1743,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         });
         setLoadingStage('complete');
 
-        // Save to search history and capture the entry ID
-        addSearchToHistory({
-          query,
-          provider,
-          mode: mode as 'web' | 'pro' | 'brainstorm',
-          sources_count: fetchedSources.length,
-          deep: false // Web mode doesn't use deep research
-        }).then(entry => {
-          if (entry?.id) {
-            setHistoryEntryId(entry.id);
-            setIsBookmarked(entry.bookmarked || false);
-          }
-        }).catch(err => console.error('Failed to save to history:', err));
-
         // Thread: Create thread and save message (web mode only, T015)
+        // Note: Web mode skips addSearchToHistory — the thread is the persistent record
         if (mode === 'web' && !currentThreadId) {
           try {
             const thread = await createThread({
@@ -1759,33 +1756,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
               setThreadTitle(thread.title);
               setThreadMessageCount(1);
 
-              // Save first message
-              await addMessage({
-                thread_id: thread.id,
-                sequence_num: 1,
-                query,
-                refined_query: searchQuery !== query ? searchQuery : undefined,
-                provider,
-                content: cleanedContent,
-                sources: fetchedSources,
-                images: fetchedImages,
-                search_intent: refineResult.searchIntent || undefined,
-              });
-
-              // Update URL to include thread ID (without page reload)
-              const url = new URL(window.location.href);
-              url.searchParams.set('thread', thread.id);
-              router.replace(url.pathname + url.search, { scroll: false });
-
-              // Generate summary fire-and-forget
-              generateThreadSummary(null, query, cleanedContent)
-                .then(summary => {
-                  updateThreadSummary(thread.id, summary).catch(console.error);
-                  setThreadSummary(summary);
-                })
-                .catch(console.error);
-
-              // Set up initial thread message in state
+              // Set up initial thread message in state (optimistic, before DB save)
               setThreadMessages([{
                 id: 'initial',
                 thread_id: thread.id,
@@ -1799,6 +1770,32 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
                 search_intent: refineResult.searchIntent || null,
                 created_at: new Date().toISOString(),
               }]);
+
+              // Update URL to include thread ID (without page reload)
+              const url = new URL(window.location.href);
+              url.searchParams.set('thread', thread.id);
+              router.replace(url.pathname + url.search, { scroll: false });
+
+              // Save first message (non-blocking — message already in UI)
+              addMessage({
+                thread_id: thread.id,
+                sequence_num: 1,
+                query,
+                refined_query: searchQuery !== query ? searchQuery : undefined,
+                provider,
+                content: cleanedContent,
+                sources: fetchedSources,
+                images: fetchedImages,
+                search_intent: refineResult.searchIntent || undefined,
+              }).catch(err => console.error('Failed to save first thread message:', err instanceof Error ? err.message : err));
+
+              // Generate summary fire-and-forget
+              generateThreadSummaryViaAPI(null, query, cleanedContent)
+                .then(summary => {
+                  updateThreadSummary(thread.id, summary).catch(console.error);
+                  setThreadSummary(summary);
+                })
+                .catch(console.error);
             }
           } catch (err) {
             console.error('Failed to create thread:', err);
@@ -2003,8 +2000,31 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
       setStreamCompleted(true);
 
-      // Save message to thread
+      // Add to local state optimistically (before DB save)
       const newSequenceNum = threadMessageCount + 1;
+      const newMessage: ThreadMessage = {
+        id: `msg-${newSequenceNum}`,
+        thread_id: currentThreadId,
+        sequence_num: newSequenceNum,
+        query: followUpQuery,
+        refined_query: searchQuery !== followUpQuery ? searchQuery : null,
+        provider,
+        content: cleanedContent,
+        sources: fetchedSources as unknown[],
+        images: fetchedImages as unknown[],
+        search_intent: refineResult.searchIntent || null,
+        created_at: new Date().toISOString(),
+      };
+      setThreadMessages(prev => [...prev, newMessage]);
+      setThreadMessageCount(newSequenceNum);
+
+      // Clear streaming state after message is in threadMessages
+      setLoadingStage('complete');
+      setIsFollowUpInProgress(false);
+      setStreamingContent('');
+      setStreamingQuery('');
+
+      // Save message to thread (non-blocking)
       try {
         await addMessage({
           thread_id: currentThreadId,
@@ -2017,39 +2037,18 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           images: fetchedImages,
           search_intent: refineResult.searchIntent || undefined,
         });
-
-        // Add to local state
-        const newMessage: ThreadMessage = {
-          id: `msg-${newSequenceNum}`,
-          thread_id: currentThreadId,
-          sequence_num: newSequenceNum,
-          query: followUpQuery,
-          refined_query: searchQuery !== followUpQuery ? searchQuery : null,
-          provider,
-          content: cleanedContent,
-          sources: fetchedSources as unknown[],
-          images: fetchedImages as unknown[],
-          search_intent: refineResult.searchIntent || null,
-          created_at: new Date().toISOString(),
-        };
-        setThreadMessages(prev => [...prev, newMessage]);
-        setThreadMessageCount(newSequenceNum);
-
-        // Update summary fire-and-forget (T021: on failure, fall back to last summary)
-        generateThreadSummary(threadSummary, followUpQuery, cleanedContent)
-          .then(summary => {
-            updateThreadSummary(currentThreadId, summary).catch(console.error);
-            setThreadSummary(summary);
-          })
-          .catch(console.error);
       } catch (err) {
-        console.error('Failed to save thread message:', err);
+        console.error('Failed to save thread message:', err instanceof Error ? err.message : err);
+        // Message is already in UI — DB save failure is non-fatal
       }
 
-      setLoadingStage('complete');
-      setIsFollowUpInProgress(false);
-      setStreamingContent('');
-      setStreamingQuery('');
+      // Update summary fire-and-forget (T021: on failure, fall back to last summary)
+      generateThreadSummaryViaAPI(threadSummary, followUpQuery, cleanedContent)
+        .then(summary => {
+          updateThreadSummary(currentThreadId, summary).catch(console.error);
+          setThreadSummary(summary);
+        })
+        .catch(console.error);
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         cancelReservationFn(reservationId);
@@ -2193,8 +2192,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
   const isStreaming = loadingStage === 'summarizing' || loadingStage === 'synthesizing' || loadingStage === 'ideating';
   const isPolishing = loadingStage === 'proofreading';
 
-  // Thread view: show when resuming a thread, or when follow-up is in progress/completed
-  if (isThreadView || (currentThreadId && threadMessages.length > 1) || (currentThreadId && threadMessages.length === 1 && isFollowUpInProgress)) {
+  // Thread view: show whenever a thread exists with messages (consistent thread UI for all web searches)
+  if (isThreadView || (currentThreadId && threadMessages.length >= 1)) {
     return (
       <ThreadView
         threadId={currentThreadId!}
@@ -2211,6 +2210,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         streamingRefinedQuery={refinedQuery}
         onFollowUp={handleFollowUp}
         isFollowUpDisabled={isFollowUpInProgress}
+        streamingQuery={streamingQuery}
       />
     );
   }

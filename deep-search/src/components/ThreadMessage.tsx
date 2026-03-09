@@ -26,7 +26,7 @@ interface ThreadMessageProps {
     sourceId: string;
   }>;
   provider?: string;
-  isLatest?: boolean; // Whether this is the most recent message (shows streaming state)
+  isLatest?: boolean;
   isStreaming?: boolean;
   loadingStage?: string;
   sequenceNum: number;
@@ -46,33 +46,31 @@ const ThreadMessage: React.FC<ThreadMessageProps> = ({
   sequenceNum,
 }) => {
   return (
-    <div className="thread-message mb-6">
-      {/* User Query Bubble */}
-      <div className="flex justify-start mb-3">
-        <div className="max-w-full md:max-w-[85%] px-4 py-2.5 bg-[var(--card)] border border-[var(--border)] rounded-2xl rounded-bl-md">
-          <p className="text-[var(--text-primary)] text-sm md:text-base">{query}</p>
+    <div className="thread-message">
+      {/* User Query — right-aligned chat bubble */}
+      <div className="pt-10 first:pt-4 pb-2 flex justify-end">
+        <div className="inline-block px-4 py-2 rounded-2xl thread-query-bubble">
+          <p className="text-sm md:text-base font-medium">{query}</p>
         </div>
       </div>
 
-      {/* Response Card - uses compact SearchResult */}
-      <div className="ml-0">
-        <SearchResult
-          query={query}
-          result={{
-            content: content,
-            sources: sources,
-            images: images,
-          }}
-          provider={provider}
-          mode="web"
-          compact={true}
-          searchIntent={isLatest ? searchIntent : null}
-          refinedQuery={isLatest ? refinedQuery : null}
-          isStreaming={isLatest ? isStreaming : false}
-          loadingStage={isLatest ? (loadingStage as any) : 'complete'}
-          streamCompleted={!isStreaming && loadingStage === 'complete'}
-        />
-      </div>
+      {/* Response — uses compact SearchResult, no wrapper chrome */}
+      <SearchResult
+        query={query}
+        result={{
+          content: content,
+          sources: sources,
+          images: images,
+        }}
+        provider={provider}
+        mode="web"
+        compact={true}
+        searchIntent={isLatest ? searchIntent : null}
+        refinedQuery={isLatest ? refinedQuery : null}
+        isStreaming={isLatest ? isStreaming : false}
+        loadingStage={isLatest ? (loadingStage as any) : 'complete'}
+        streamCompleted={!isStreaming && loadingStage === 'complete'}
+      />
     </div>
   );
 };

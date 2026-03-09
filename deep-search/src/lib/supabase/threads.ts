@@ -104,7 +104,7 @@ export async function addMessage(insert: ThreadMessageInsert): Promise<ThreadMes
     .single();
 
   if (error) {
-    console.error('Error adding thread message:', error);
+    console.error('Error adding thread message:', error.message, 'code:', error.code, 'details:', error.details, 'hint:', error.hint);
     throw error;
   }
 
