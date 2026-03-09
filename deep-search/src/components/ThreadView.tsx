@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import type { ThreadMessage } from '@/lib/supabase/database';
 
 interface ThreadViewProps {
-  threadId: string;
+  threadId: string | null;
   title: string;
   messages: ThreadMessage[];
   messageCount: number;
@@ -98,9 +98,13 @@ const ThreadView: React.FC<ThreadViewProps> = ({
     }
   };
 
+  // Suppress unused var warning — threadId is part of the interface for future use
+  void threadId;
+  void title;
+
   return (
     <div className="thread-view flex flex-col min-h-0 max-w-4xl mx-auto">
-      {/* Messages — content-first, no header */}
+      {/* Messages */}
       <div className="flex-1">
         {messages.map((msg) => (
           <ThreadMessageComponent
@@ -150,14 +154,14 @@ const ThreadView: React.FC<ThreadViewProps> = ({
       )}
 
       {/* Spacer for floating follow-up */}
-      <div className="h-20" />
+      <div className="h-24" />
 
-      {/* Gradient fade above follow-up input */}
-      <div className="fixed bottom-[52px] left-0 right-0 h-16 bg-gradient-to-t from-[var(--background)] to-transparent pointer-events-none z-30 md:ml-[72px] print:hidden" />
+      {/* Soft fade above follow-up input */}
+      <div className="fixed bottom-[56px] left-0 right-0 h-12 bg-gradient-to-t from-[var(--background)] to-transparent pointer-events-none z-30 md:ml-[72px] print:hidden" />
 
-      {/* Fixed Follow-up Input — minimal flat design */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-[var(--background)] py-3 px-4 md:pl-[calc(72px+16px)] print:hidden">
-        <div className="flex items-end gap-2 max-w-4xl mx-auto bg-[var(--card)] rounded-2xl border border-[var(--border)] px-4 py-2">
+      {/* Fixed Follow-up Input */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-[var(--background)]/80 backdrop-blur-xl py-3 px-4 md:pl-[calc(72px+16px)] print:hidden">
+        <div className="flex items-end gap-2.5 max-w-4xl mx-auto bg-[var(--card)] rounded-2xl border border-[var(--border)] px-4 py-2.5 shadow-sm transition-shadow focus-within:shadow-md focus-within:border-[var(--accent)]/30">
           <textarea
             ref={followUpTextareaRef}
             rows={1}
@@ -166,12 +170,12 @@ const ThreadView: React.FC<ThreadViewProps> = ({
             onChange={(e) => setFollowUpQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={isAtLimit || isFollowUpDisabled}
-            className="flex-1 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none text-sm resize-none overflow-y-auto scrollbar-thin min-h-[24px] py-1 disabled:opacity-50 placeholder:text-[var(--text-muted)]"
+            className="flex-1 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none text-sm resize-none overflow-y-auto scrollbar-thin min-h-[24px] py-1 disabled:opacity-40 placeholder:text-[var(--text-muted)]"
           />
           <button
             onClick={handleFollowUp}
             disabled={!followUpQuery.trim() || isAtLimit || isFollowUpDisabled}
-            className="flex-shrink-0 w-8 h-8 rounded-full bg-[var(--text-primary)] text-[var(--background)] flex items-center justify-center disabled:opacity-30 transition-opacity hover:opacity-80"
+            className="flex-shrink-0 w-8 h-8 rounded-full bg-[var(--text-primary)] text-[var(--background)] flex items-center justify-center disabled:opacity-20 transition-all hover:opacity-80 hover:scale-105 active:scale-95"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18" />

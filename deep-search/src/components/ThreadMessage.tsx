@@ -45,16 +45,19 @@ const ThreadMessage: React.FC<ThreadMessageProps> = ({
   loadingStage = 'complete',
   sequenceNum,
 }) => {
+  // Suppress unused var
+  void sequenceNum;
+
   return (
     <div className="thread-message">
-      {/* User Query — right-aligned chat bubble */}
-      <div className="pt-10 first:pt-4 pb-2 flex justify-end">
-        <div className="inline-block px-4 py-2 rounded-2xl thread-query-bubble">
-          <p className="text-sm md:text-base font-medium">{query}</p>
+      {/* User Query — right-aligned pill */}
+      <div className="pt-6 pb-1 flex justify-end px-6">
+        <div className="inline-block px-4 py-2.5 rounded-2xl thread-query-bubble max-w-[85%]">
+          <p className="text-[15px] font-medium leading-relaxed">{query}</p>
         </div>
       </div>
 
-      {/* Response — uses compact SearchResult, no wrapper chrome */}
+      {/* Response — compact SearchResult */}
       <SearchResult
         query={query}
         result={{
@@ -68,7 +71,7 @@ const ThreadMessage: React.FC<ThreadMessageProps> = ({
         searchIntent={isLatest ? searchIntent : null}
         refinedQuery={isLatest ? refinedQuery : null}
         isStreaming={isLatest ? isStreaming : false}
-        loadingStage={isLatest ? (loadingStage as 'searching' | 'summarizing' | 'complete') : 'complete'}
+        loadingStage={isLatest ? (loadingStage as 'refining' | 'searching' | 'summarizing' | 'complete') : 'complete'}
         streamCompleted={!isStreaming && loadingStage === 'complete'}
       />
     </div>

@@ -84,7 +84,6 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
   const [threadMessages, setThreadMessages] = useState<ThreadMessage[]>([]);
   const [threadTitle, setThreadTitle] = useState<string>('');
   const [threadMessageCount, setThreadMessageCount] = useState<number>(0);
-  const [isThreadView, setIsThreadView] = useState<boolean>(!!threadId && !query);
   const [isFollowUpInProgress, setIsFollowUpInProgress] = useState<boolean>(false);
   const [streamingQuery, setStreamingQuery] = useState<string>('');
   const router = useRouter();
@@ -169,7 +168,6 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         if (!isActive) return;
 
         setThreadMessages(messages);
-        setIsThreadView(true);
         setLoadingStage('complete');
       } catch (err) {
         console.error('Failed to load thread:', err);
@@ -1881,7 +1879,6 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     if (threadMessageCount >= 20) return; // T019: Enforce 20-message limit
 
     setIsFollowUpInProgress(true);
-    setIsThreadView(true); // Switch to thread view
     setStreamingQuery(followUpQuery);
     setLoadingStage('refining');
     setStreamCompleted(false);
@@ -2154,7 +2151,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
   }
 
   // Show "no results" only when complete and no result/sources (not in thread view)
-  if (loadingStage === 'complete' && !searchResult && sources.length === 0 && !isThreadView && threadMessages.length === 0) {
+  if (loadingStage === 'complete' && !searchResult && sources.length === 0 && threadMessages.length === 0) {
     return (
       <div className="max-w-4xl mx-auto p-6">
         <Card className="p-8 text-center">
@@ -2173,8 +2170,34 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     );
   }
 
-  // Use a single SearchResultComponent for summarizing, proofreading, and complete stages
-  // This prevents component remounting which causes visual flash
+  // Web mode: always render ThreadView (first search streams directly into thread UI)
+  if (mode === 'web') {
+    // First search is streaming when no thread exists yet and search is in progress
+    const isFirstSearchStreaming = !currentThreadId && loadingStage !== 'complete';
+    const isStreamingInThread = isFirstSearchStreaming || (isFollowUpInProgress && loadingStage !== 'complete');
+
+    return (
+      <ThreadView
+        threadId={currentThreadId}
+        title={threadTitle || query}
+        messages={threadMessages}
+        messageCount={threadMessageCount}
+        provider={provider}
+        isStreaming={isStreamingInThread}
+        loadingStage={loadingStage}
+        streamingContent={streamingContent}
+        streamingSources={sources}
+        streamingImages={images}
+        streamingSearchIntent={searchIntent}
+        streamingRefinedQuery={refinedQuery}
+        onFollowUp={handleFollowUp}
+        isFollowUpDisabled={!currentThreadId || isFollowUpInProgress}
+        streamingQuery={isFirstSearchStreaming ? query : streamingQuery}
+      />
+    );
+  }
+
+  // Pro/Brainstorm: use SearchResultComponent
   const displayContent = loadingStage === 'complete' && searchResult
     ? searchResult.content
     : streamingContent;
@@ -2187,33 +2210,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     ? searchResult.images
     : images;
 
-  // Determine loading state indicators
   const isSearching = loadingStage === 'refining' || loadingStage === 'searching' || loadingStage === 'planning' || loadingStage === 'researching' || loadingStage === 'extracting' || loadingStage === 'reframing' || loadingStage === 'exploring' || loadingStage === 'analyzing_gaps' || loadingStage === 'deepening';
   const isStreaming = loadingStage === 'summarizing' || loadingStage === 'synthesizing' || loadingStage === 'ideating';
   const isPolishing = loadingStage === 'proofreading';
-
-  // Thread view: show whenever a thread exists with messages (consistent thread UI for all web searches)
-  if (isThreadView || (currentThreadId && threadMessages.length >= 1)) {
-    return (
-      <ThreadView
-        threadId={currentThreadId!}
-        title={threadTitle}
-        messages={threadMessages}
-        messageCount={threadMessageCount}
-        provider={provider}
-        isStreaming={isFollowUpInProgress && (loadingStage === 'summarizing' || loadingStage === 'refining' || loadingStage === 'searching')}
-        loadingStage={loadingStage}
-        streamingContent={streamingContent}
-        streamingSources={sources}
-        streamingImages={images}
-        streamingSearchIntent={searchIntent}
-        streamingRefinedQuery={refinedQuery}
-        onFollowUp={handleFollowUp}
-        isFollowUpDisabled={isFollowUpInProgress}
-        streamingQuery={streamingQuery}
-      />
-    );
-  }
 
   return (
     <SearchResultComponent
@@ -2249,7 +2248,6 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       searchIntent={searchIntent}
       refinedQuery={refinedQuery}
       streamCompleted={streamCompleted}
-      onFollowUp={currentThreadId ? handleFollowUp : undefined}
     />
   );
 }

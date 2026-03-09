@@ -47,12 +47,12 @@ ALTER TABLE thread_messages ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users manage own threads"
   ON search_threads FOR ALL
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 CREATE POLICY "Users access own thread messages"
   ON thread_messages FOR ALL
   USING (thread_id IN (
-    SELECT id FROM search_threads WHERE user_id = auth.uid()
+    SELECT id FROM search_threads WHERE user_id = (select auth.uid())
   ));
 
 -- Auto-update thread metadata when message inserted

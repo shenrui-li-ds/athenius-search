@@ -498,14 +498,14 @@ SELECT * FROM admin_user_credits;
 ### Rate Limits (Security)
 Search and token limits are enforced for abuse prevention, separate from billing:
 
-| Limit | Free Tier | Pro Tier | Reset |
-|-------|-----------|----------|-------|
-| Daily searches | 50 | 50 | Midnight |
-| Monthly searches | 1,000 | 1,000 | 1st of month |
-| Daily tokens | 50,000 | 200,000 | Midnight |
-| Monthly tokens | 500,000 | 5,000,000 | 1st of month |
+| Limit | Free Tier | Pro Tier | Admin Tier | Reset |
+|-------|-----------|----------|------------|-------|
+| Daily searches | 50 | 100 | Unlimited | Midnight |
+| Monthly searches | 1,000 | 5,000 | Unlimited | 1st of month |
+| Daily tokens | 50,000 | 200,000 | Unlimited | Midnight |
+| Monthly tokens | 500,000 | 5,000,000 | Unlimited | 1st of month |
 
-Admin tier has unlimited token limits. These limits apply regardless of available credits. Prevents bad actors from abusing the system.
+Admin tier has unlimited search and token limits. These limits apply regardless of available credits. Prevents bad actors from abusing the system.
 
 ### Unified Check Model
 Every search request goes through a single atomic check in `/api/check-limit` using the `reserve_and_authorize_search()` RPC:
