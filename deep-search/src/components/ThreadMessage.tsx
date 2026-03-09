@@ -23,7 +23,7 @@ interface ThreadMessageProps {
   images?: Array<{
     url: string;
     alt: string;
-    sourceId: string;
+    sourceId?: string;
   }>;
   provider?: string;
   isLatest?: boolean;
