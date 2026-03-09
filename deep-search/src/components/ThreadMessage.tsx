@@ -68,7 +68,7 @@ const ThreadMessage: React.FC<ThreadMessageProps> = ({
         searchIntent={isLatest ? searchIntent : null}
         refinedQuery={isLatest ? refinedQuery : null}
         isStreaming={isLatest ? isStreaming : false}
-        loadingStage={isLatest ? (loadingStage as any) : 'complete'}
+        loadingStage={isLatest ? (loadingStage as 'searching' | 'summarizing' | 'complete') : 'complete'}
         streamCompleted={!isStreaming && loadingStage === 'complete'}
       />
     </div>

@@ -15,8 +15,23 @@ interface ThreadViewProps {
   isStreaming?: boolean;
   loadingStage?: string;
   streamingContent?: string;
-  streamingSources?: any[];
-  streamingImages?: any[];
+  streamingSources?: Array<{
+    id: string;
+    title: string;
+    url: string;
+    iconUrl: string;
+    snippet?: string;
+    sourceType?: 'web' | 'academic';
+    doi?: string;
+    citedByCount?: number;
+    journalName?: string;
+    publicationYear?: number;
+  }>;
+  streamingImages?: Array<{
+    url: string;
+    alt: string;
+    sourceId: string;
+  }>;
   streamingSearchIntent?: string | null;
   streamingRefinedQuery?: string | null;
   // Follow-up handling
@@ -94,8 +109,8 @@ const ThreadView: React.FC<ThreadViewProps> = ({
             refinedQuery={msg.refined_query}
             searchIntent={msg.search_intent}
             content={msg.content || ''}
-            sources={(msg.sources || []) as any[]}
-            images={(msg.images || []) as any[]}
+            sources={(msg.sources || []) as React.ComponentProps<typeof ThreadMessageComponent>['sources']}
+            images={(msg.images || []) as React.ComponentProps<typeof ThreadMessageComponent>['images']}
             provider={msg.provider || provider}
             sequenceNum={msg.sequence_num}
             isLatest={false}
