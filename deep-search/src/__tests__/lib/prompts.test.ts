@@ -5,6 +5,9 @@ import {
   proofreadParagraphPrompt,
   researchPlannerPrompt,
   researchSynthesizerPrompt,
+  deepResearchSynthesizerPrompt,
+  aspectExtractorPrompt,
+  gapAnalyzerPrompt,
   researchProofreadPrompt,
   brainstormReframePrompt,
   brainstormSynthesizerPrompt,
@@ -445,6 +448,191 @@ describe('Prompts', () => {
     it('defaults to English when language not specified', () => {
       const prompt = brainstormSynthesizerPrompt('test', 'date');
       expect(prompt).toContain('<responseLanguage>English</responseLanguage>');
+    });
+  });
+
+  describe('adversarial evidence analysis prompts', () => {
+    describe('summarizeSearchResultsPrompt — evidenceAnalysis', () => {
+      const prompt = summarizeSearchResultsPrompt('test', 'date');
+
+      it('includes evidenceAnalysis section', () => {
+        expect(prompt).toContain('<evidenceAnalysis>');
+        expect(prompt).toContain('</evidenceAnalysis>');
+      });
+
+      it('instructs multi-source claims as established fact', () => {
+        expect(prompt).toContain('multiple sources independently confirm');
+        expect(prompt).toContain('established fact with combined citations');
+      });
+
+      it('instructs single-source attribution', () => {
+        expect(prompt).toContain('only one source supports a significant claim');
+        expect(prompt).toContain('According to [Source Name]');
+      });
+
+      it('instructs both-sides conflict handling', () => {
+        expect(prompt).toContain('While [1] reports X, [2] argues Y');
+        expect(prompt).toContain('do not silently pick a side');
+      });
+
+      it('distinguishes data-backed from opinion-based claims', () => {
+        expect(prompt).toContain('data-backed claims');
+        expect(prompt).toContain('opinion-based claims');
+      });
+
+      it('replaced vague conflict instruction with specific one', () => {
+        expect(prompt).not.toContain('If information is uncertain or conflicting, acknowledge this clearly');
+        expect(prompt).toContain('present both positions with their respective citations rather than picking one side');
+      });
+
+      it('evidenceAnalysis appears between requirements and formatting', () => {
+        const reqEnd = prompt.indexOf('</requirements>');
+        const evidenceStart = prompt.indexOf('<evidenceAnalysis>');
+        const fmtStart = prompt.indexOf('<formatting>');
+        expect(evidenceStart).toBeGreaterThan(reqEnd);
+        expect(evidenceStart).toBeLessThan(fmtStart);
+      });
+    });
+
+    describe('aspectExtractorPrompt — confidenceCriteria + evidenceTypes', () => {
+      const prompt = aspectExtractorPrompt('fundamentals', 'test query');
+
+      it('includes confidenceCriteria section', () => {
+        expect(prompt).toContain('<confidenceCriteria>');
+        expect(prompt).toContain('</confidenceCriteria>');
+      });
+
+      it('defines all three confidence levels with countable heuristics', () => {
+        expect(prompt).toContain('name="established"');
+        expect(prompt).toContain('2 or more sources that agree');
+        expect(prompt).toContain('name="emerging"');
+        expect(prompt).toContain('only 1 source');
+        expect(prompt).toContain('name="contested"');
+        expect(prompt).toContain('Sources directly disagree');
+      });
+
+      it('includes evidenceTypes section', () => {
+        expect(prompt).toContain('<evidenceTypes>');
+        expect(prompt).toContain('</evidenceTypes>');
+      });
+
+      it('defines all four evidence types', () => {
+        expect(prompt).toContain('name="data"');
+        expect(prompt).toContain('specific numbers, statistics, dates');
+        expect(prompt).toContain('name="study"');
+        expect(prompt).toContain('named study, paper, survey');
+        expect(prompt).toContain('name="expert_opinion"');
+        expect(prompt).toContain('named person or organization');
+        expect(prompt).toContain('name="anecdotal"');
+        expect(prompt).toContain('general assertion');
+      });
+
+      it('includes evidenceType in claims output schema', () => {
+        expect(prompt).toContain('"evidenceType": "data|study|expert_opinion|anecdotal"');
+      });
+
+      it('confidenceCriteria appears after extractionRules', () => {
+        const rulesEnd = prompt.indexOf('</extractionRules>');
+        const criteriaStart = prompt.indexOf('<confidenceCriteria>');
+        expect(criteriaStart).toBeGreaterThan(rulesEnd);
+      });
+    });
+
+    describe('researchSynthesizerPrompt — evidenceEvaluation', () => {
+      const prompt = researchSynthesizerPrompt('test', 'date');
+
+      it('includes evidenceEvaluation section', () => {
+        expect(prompt).toContain('<evidenceEvaluation>');
+        expect(prompt).toContain('</evidenceEvaluation>');
+      });
+
+      it('does not contain old confidenceHandling section', () => {
+        expect(prompt).not.toContain('<confidenceHandling>');
+        expect(prompt).not.toContain('</confidenceHandling>');
+      });
+
+      it('includes all 6 evidence evaluation principles', () => {
+        expect(prompt).toContain('2+ sources agree');
+        expect(prompt).toContain('According to [source]');
+        expect(prompt).toContain('strongest evidence on each side');
+        expect(prompt).toContain('rests on a single source');
+        expect(prompt).toContain('Weight evidence by type');
+        expect(prompt).toContain('similar perspective');
+      });
+    });
+
+    describe('deepResearchSynthesizerPrompt — evidenceEvaluation + gapResolution', () => {
+      const prompt = deepResearchSynthesizerPrompt('test', 'date', 'English', ['gap1']);
+
+      it('includes evidenceEvaluation section', () => {
+        expect(prompt).toContain('<evidenceEvaluation>');
+        expect(prompt).toContain('</evidenceEvaluation>');
+      });
+
+      it('does not contain old confidenceHandling section', () => {
+        expect(prompt).not.toContain('<confidenceHandling>');
+        expect(prompt).not.toContain('</confidenceHandling>');
+      });
+
+      it('includes gapResolution section', () => {
+        expect(prompt).toContain('<gapResolution>');
+        expect(prompt).toContain('</gapResolution>');
+      });
+
+      it('gapResolution assesses whether gaps are genuinely resolved', () => {
+        expect(prompt).toContain('genuinely resolves it or leaves it partially open');
+      });
+
+      it('gapResolution handles R1 vs R2 contradictions', () => {
+        expect(prompt).toContain('Round 2 evidence contradicts Round 1 findings');
+        expect(prompt).toContain('stronger evidence rather than silently preferring the newer data');
+      });
+
+      it('gapResolution acknowledges unresolved gaps', () => {
+        expect(prompt).toContain('briefly acknowledge the limitation rather than omitting the topic entirely');
+      });
+
+      it('has same 6 evidenceEvaluation principles as research synthesizer', () => {
+        const researchPrompt = researchSynthesizerPrompt('test', 'date');
+        const deepPrompt = deepResearchSynthesizerPrompt('test', 'date');
+
+        // Extract evidenceEvaluation content from both
+        const extractEvidenceEval = (p: string) => {
+          const start = p.indexOf('<evidenceEvaluation>');
+          const end = p.indexOf('</evidenceEvaluation>') + '</evidenceEvaluation>'.length;
+          return p.slice(start, end);
+        };
+
+        expect(extractEvidenceEval(deepPrompt)).toBe(extractEvidenceEval(researchPrompt));
+      });
+    });
+
+    describe('gapAnalyzerPrompt — contradicted_claim', () => {
+      const prompt = gapAnalyzerPrompt('test query', 'extracted data', 'English');
+
+      it('includes contradicted_claim gap type', () => {
+        expect(prompt).toContain('contradicted_claim');
+      });
+
+      it('defines contradicted_claim as sources directly conflicting', () => {
+        expect(prompt).toContain('sources directly conflict');
+        expect(prompt).toContain('authoritative resolution');
+      });
+
+      it('includes prioritization rule for contradictions', () => {
+        expect(prompt).toContain('contradictions on significant claims');
+        expect(prompt).toContain('prioritize generating a "contradicted_claim" gap');
+        expect(prompt).toContain('authoritative or primary sources');
+      });
+
+      it('preserves existing gap types', () => {
+        expect(prompt).toContain('missing_perspective');
+        expect(prompt).toContain('needs_verification');
+        expect(prompt).toContain('missing_practical');
+        expect(prompt).toContain('needs_recency');
+        expect(prompt).toContain('missing_comparison');
+        expect(prompt).toContain('missing_expert');
+      });
     });
   });
 });
