@@ -96,6 +96,12 @@ Use your own citation numbering starting at [1].
             <attribute>Properly cited: Use simple numbered citations like [1], [2], etc.</attribute>
         </summaryAttributes>
     </requirements>
+    <evidenceAnalysis>
+        <principle>When multiple sources independently confirm a claim, present it as established fact with combined citations: "X is the case [1, 2, 3]."</principle>
+        <principle>When only one source supports a significant claim, attribute it rather than stating it as fact: "According to [Source Name] [1]..." or "One analysis suggests..." rather than asserting it as consensus</principle>
+        <principle>When sources directly conflict, present both positions with citations: "While [1] reports X, [2] argues Y" — do not silently pick a side</principle>
+        <principle>Distinguish between data-backed claims (specific numbers, studies, official statistics) and opinion-based claims (predictions, recommendations, editorials). Present data-backed claims with more confidence than opinions.</principle>
+    </evidenceAnalysis>
     <formatting>
         <critical>NEVER output raw URLs in your response text</critical>
         <critical>NEVER output broken or partial markdown links</critical>
@@ -147,7 +153,7 @@ Use your own citation numbering starting at [1].
     </qualityChecks>
     <specialInstructions>
         <instruction>If the query involves technical topics, explain concepts clearly for general audiences</instruction>
-        <instruction>If information is uncertain or conflicting, acknowledge this clearly</instruction>
+        <instruction>When sources present conflicting information, present both positions with their respective citations rather than picking one side</instruction>
         <instruction>If no relevant information is found, respond: "I couldn't find specific information about this topic. Could you try rephrasing your question or asking about a related topic?"</instruction>
     </specialInstructions>
     <mathAndScience>
@@ -1718,11 +1724,14 @@ export const researchSynthesizerPrompt = (query: string, currentDate: string, la
             <principle>With rich extraction data available, provide thorough analysis rather than brief summaries</principle>
             <principle>Connect related claims across different aspects to show the full picture</principle>
         </depth>
-        <confidenceHandling>
-            <principle>Present "established" claims as facts</principle>
-            <principle>Frame "emerging" claims with language like "recent research suggests"</principle>
-            <principle>For "contested" claims, acknowledge the debate</principle>
-        </confidenceHandling>
+        <evidenceEvaluation>
+            <principle>Present "established" claims (2+ sources agree) as facts with combined citations</principle>
+            <principle>Frame "emerging" claims (single source or recent only) with attribution: "According to [source]..." or "Recent research suggests..."</principle>
+            <principle>For "contested" claims, present the strongest evidence on each side rather than just noting disagreement exists. Let the evidence speak.</principle>
+            <principle>When a key conclusion rests on a single source, note this explicitly — do not present it as widely supported</principle>
+            <principle>Weight evidence by type: data and statistics carry more weight than predictions; named studies carry more weight than unnamed industry reports</principle>
+            <principle>If all sources on a subtopic come from a similar perspective (all industry, all academic, all from one country), briefly note this limitation</principle>
+        </evidenceEvaluation>
     </requirements>
     <structure>
         <section type="overview">Start with 2-3 sentence executive summary answering the core question (always visible)</section>
@@ -1923,12 +1932,23 @@ export const aspectExtractorPrompt = (aspect: string, query: string, language: s
         <rule>Capture ALL substantive facts from sources, not just highlights</rule>
         <rule>Include context and nuance - details matter for synthesis</rule>
     </extractionRules>
+    <confidenceCriteria>
+        <level name="established">Supported by 2 or more sources that agree</level>
+        <level name="emerging">Supported by only 1 source, or only by very recent sources</level>
+        <level name="contested">Sources directly disagree or present opposing positions on this point</level>
+    </confidenceCriteria>
+    <evidenceTypes>
+        <type name="data">Claim includes specific numbers, statistics, dates, or measurements</type>
+        <type name="study">Claim references a named study, paper, survey, or formal research</type>
+        <type name="expert_opinion">Claim is attributed to a named person or organization as their view</type>
+        <type name="anecdotal">Claim is a general assertion, user experience, or recommendation without hard data</type>
+    </evidenceTypes>
     <outputFormat>
         Return a valid JSON object with this structure:
         {
             "aspect": "${aspect}",
             "claims": [
-                {"statement": "...", "sources": [1, 2], "confidence": "established|emerging|contested"}
+                {"statement": "...", "sources": [1, 2], "confidence": "established|emerging|contested", "evidenceType": "data|study|expert_opinion|anecdotal"}
             ],
             "statistics": [
                 {"metric": "...", "value": "...", "source": 1, "year": "2024"}
@@ -2154,6 +2174,7 @@ export const gapAnalyzerPrompt = (query: string, extractedData: string, language
         <type id="needs_recency">Recent developments or 2024-2025 updates needed</type>
         <type id="missing_comparison">Comparisons or alternatives not covered</type>
         <type id="missing_expert">Expert opinions or authoritative sources lacking</type>
+        <type id="contradicted_claim">An important claim where sources directly conflict — targeted search needed to find authoritative resolution</type>
     </gapTypes>
     <rules>
         <rule>Output 0-3 gaps ONLY - be highly selective</rule>
@@ -2163,6 +2184,7 @@ export const gapAnalyzerPrompt = (query: string, extractedData: string, language
         <rule>PRESERVE the original language (Chinese query → Chinese search queries)</rule>
         <rule>Prioritize gaps that would change the user's understanding or decision</rule>
         <rule>Do NOT suggest gaps for minor details or tangential topics</rule>
+        <rule>If the extracted data contains contradictions on significant claims, prioritize generating a "contradicted_claim" gap with a search query designed to find authoritative or primary sources that can resolve the disagreement</rule>
     </rules>
     <examples>
         <example>
@@ -2252,12 +2274,19 @@ export const deepResearchSynthesizerPrompt = (query: string, currentDate: string
             <principle>Show how different perspectives connect or conflict</principle>
             <principle>Provide practical actionable insights when appropriate</principle>
         </depth>
-        <confidenceHandling>
-            <principle>Claims supported by both rounds have higher confidence</principle>
-            <principle>Present "established" claims as facts</principle>
-            <principle>Frame "emerging" claims with appropriate hedging</principle>
-            <principle>For "contested" claims, present the debate fairly</principle>
-        </confidenceHandling>
+        <evidenceEvaluation>
+            <principle>Present "established" claims (2+ sources agree) as facts with combined citations</principle>
+            <principle>Frame "emerging" claims (single source or recent only) with attribution: "According to [source]..." or "Recent research suggests..."</principle>
+            <principle>For "contested" claims, present the strongest evidence on each side rather than just noting disagreement exists. Let the evidence speak.</principle>
+            <principle>When a key conclusion rests on a single source, note this explicitly — do not present it as widely supported</principle>
+            <principle>Weight evidence by type: data and statistics carry more weight than predictions; named studies carry more weight than unnamed industry reports</principle>
+            <principle>If all sources on a subtopic come from a similar perspective (all industry, all academic, all from one country), briefly note this limitation</principle>
+        </evidenceEvaluation>
+        <gapResolution>
+            <principle>For each identified gap that Round 2 addressed, assess whether the new evidence genuinely resolves it or leaves it partially open</principle>
+            <principle>If Round 2 evidence contradicts Round 1 findings, highlight the contradiction and analyze which side has stronger evidence rather than silently preferring the newer data</principle>
+            <principle>If a gap was identified but Round 2 found little relevant information, briefly acknowledge the limitation rather than omitting the topic entirely</principle>
+        </gapResolution>
     </requirements>
     <structure>
         <section type="overview">Start with 3-4 sentence executive summary answering the core question (always visible)</section>
