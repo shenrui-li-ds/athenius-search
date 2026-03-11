@@ -45,7 +45,7 @@ function summarizeExtractedData(extractedData: ExtractedAspect[]): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const { query, extractedData, language, provider, crossCuttingEntities = [], sourceAuthority, queryType } = await req.json();
+    const { query, extractedData, language, provider, crossCuttingEntities = [], sourceAuthority, queryType, filledGaps, memoryAge } = await req.json();
     const llmProvider = provider as LLMProvider | undefined;
 
     if (!query || !extractedData) {
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Build the prompt
-    const prompt = gapAnalyzerPrompt(query, extractedSummary, language || 'English');
+    const prompt = gapAnalyzerPrompt(query, extractedSummary, language || 'English', filledGaps, memoryAge);
 
     const messages: OpenAIMessage[] = [
       {

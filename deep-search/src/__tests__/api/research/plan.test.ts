@@ -20,6 +20,19 @@ jest.mock('@/lib/supabase/usage-tracking', () => ({
 jest.mock('@/lib/prompts', () => ({
   researchPlannerPrompt: jest.fn(() => 'mocked planner prompt'),
   researchRouterPrompt: jest.fn(() => 'mocked router prompt'),
+  detectFinanceSubType: jest.fn(() => undefined),
+  researchPlannerFinancePromptV2: jest.fn(() => 'mocked finance v2 prompt'),
+  researchPlannerShoppingPromptV2: jest.fn(() => 'mocked shopping v2 prompt'),
+  researchPlannerTravelPromptV2: jest.fn(() => 'mocked travel v2 prompt'),
+  researchPlannerTechnicalPromptV2: jest.fn(() => 'mocked technical v2 prompt'),
+  researchPlannerAcademicPromptV2: jest.fn(() => 'mocked academic v2 prompt'),
+  researchPlannerExplanatoryPromptV2: jest.fn(() => 'mocked explanatory v2 prompt'),
+  researchPlannerGeneralPromptV2: jest.fn(() => 'mocked general v2 prompt'),
+}));
+
+// Mock the classification-log module
+jest.mock('@/lib/classification-log', () => ({
+  logClassification: jest.fn(),
 }));
 
 // Mock the cache module

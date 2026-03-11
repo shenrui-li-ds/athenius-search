@@ -51,11 +51,12 @@ Display
 
 Staleness is managed at three levels:
 
-1. **Storage**: TTL set at write time (14d standard, 30d deep, 90d expertise)
+1. **Storage**: TTL set at write time (14d standard, 30d deep)
 2. **Retrieval**: Age calculated at read time, included in prompt XML
 3. **Prompt**: LLM receives explicit caveat to prefer current sources over stored findings
 4. **Cleanup**: Daily cron job deletes expired rows
 5. **Invalidation**: Upsert replaces old memory when same topic re-researched
+6. **Expertise decay**: Effective `query_count` halved at read time if `last_searched_at` > 90 days ago (no cron needed — stateless calculation)
 
 No in-memory staleness tracking — all staleness is derived from timestamps at query time. This is stateless and correct across server restarts.
 
@@ -72,13 +73,17 @@ No in-memory staleness tracking — all staleness is derived from timestamps at 
 
 **Risk**: pg_trgm extension may not be enabled in Supabase by default. Verify availability; fallback to LIKE matching if needed.
 
+**Cost**: Memory compression adds one LLM call per research session. Mitigated by: using cheapest provider (DeepSeek), capping input at 1000 words, skipping compression when synthesis is already <200 words. Fire-and-forget — no latency impact.
+
+**Reversibility**: Migration includes DOWN migration comments (DROP TABLE, DROP EXTENSION IF EXISTS). pg_trgm uses `CREATE EXTENSION IF NOT EXISTS` to avoid conflicts.
+
 ### Phase 2: Gap Analysis Memory (Highest Leverage)
 
 **Files**: `deep-search/src/lib/prompts.ts`, `deep-search/src/app/api/research/analyze-gaps/route.ts`, `deep-search/src/app/search/search-client.tsx`
 
 1. Add optional `<previouslyFilledGaps>` section to `gapAnalyzerPrompt`
 2. Update analyze-gaps route to accept and inject `filledGaps` parameter
-3. Update search-client.tsx: retrieve memory before gap analysis, pass filledGaps
+3. Update search-client.tsx: add memory retrieval in parallel with plan + limit check at pipeline start; pass `filledGaps` from retrieved memory to analyze-gaps
 4. Update search-client.tsx: store memory after synthesis completes (fire-and-forget)
 5. Verify: Research same topic twice, confirm gap analyzer avoids prior gaps
 
@@ -92,9 +97,9 @@ No in-memory staleness tracking — all staleness is derived from timestamps at 
 2. Add optional `<priorContext>` section to both synthesizer prompts (keep in sync)
 3. Update plan route to accept and inject `priorResearch` parameter
 4. Update synthesize route to accept and inject `priorContext` parameter
-5. Update search-client.tsx: retrieve memory in parallel with plan, pass through pipeline
-6. Implement active invalidation: upsert replaces old memory on re-research
-7. Verify: Research related topic, confirm planner generates complementary angles
+5. Update search-client.tsx: extend memory retrieval (already parallel from Phase 2) to pass `priorResearch` to plan API and `priorContext` to synthesize API
+6. Verify: Research related topic, confirm planner generates complementary angles
+Note: Active invalidation (upsert) is already implemented in Phase 1's POST handler.
 
 ### Phase 4: User Expertise + Settings
 
@@ -107,15 +112,14 @@ No in-memory staleness tracking — all staleness is derived from timestamps at 
 5. Add "Clear Research Memory" button to Account > Preferences
 6. Verify: Research finance topics 10+ times, confirm synthesis skips basic definitions
 
-### Phase 5: Testing + Documentation
+### Phase 5: Documentation + Final Validation
 
-1. Unit tests for prompt sections (present when memory provided, absent when not)
-2. Integration tests for memory API (CRUD, upsert, RLS, TTL expiration)
-3. Integration tests for pipeline flow (memory → plan → gaps → synthesis → store)
-4. Update `deep-search/src/lib/CLAUDE.md` with research-memory.ts documentation
-5. Update `deep-search/src/app/api/CLAUDE.md` with memory route documentation
-6. Update project `CLAUDE.md` with research memory architecture
-7. Quality gates: `npm run lint`, `npm run build`, all tests pass
+Tests are written alongside implementation in Phases 1-4 (per Constitution Principle VI). Phase 5 is documentation only.
+
+1. Update `deep-search/src/lib/CLAUDE.md` with research-memory.ts documentation
+2. Update `deep-search/src/app/api/CLAUDE.md` with memory route documentation
+3. Update project `CLAUDE.md` with research memory architecture
+4. Quality gates: `npm run lint`, `npm run build`, all tests pass
 
 ## Files Modified
 

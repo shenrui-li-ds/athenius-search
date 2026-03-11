@@ -69,7 +69,7 @@ Incremented after each research session. Tracks domain familiarity:
 |-------------|-----|-----------|
 | Deep Research memory | 30 days | Multi-round research with gap filling; high-quality, worth preserving longer |
 | Standard Research memory | 14 days | Single-round; less comprehensive, stales faster |
-| User expertise | 90 days with decay | Slow to change; decays if user stops searching a domain |
+| User expertise | 90 days with read-time decay | Slow to change; effective `query_count` halved if `last_searched_at` > 90 days ago (calculated at read time, no cron needed) |
 
 ### Prompt-Level Age Caveats
 
@@ -91,12 +91,11 @@ When a user researches the same or highly similar topic again:
 2. This ensures the freshest research is always stored
 3. No duplicate memories accumulate for the same topic
 
-### Conflict Detection
+### Conflict Detection (Deferred — Phase 3+)
 
-When the current synthesis contradicts a stored key claim:
-- The synthesizer prompt includes both the stored claim and the new conflicting evidence
-- The LLM is instructed to explicitly note the update: "Previous research suggested X, but current sources indicate Y"
-- The stored memory is replaced after synthesis completes
+Conflict detection is handled implicitly through the `<priorContext>` prompt section: the synthesizer receives stored `keyClaims` and `resolvedContradictions`, and the caveat instructs it to "explicitly note the update" when current sources contradict stored findings. No dedicated conflict detection logic is needed — the LLM performs the comparison naturally. The stored memory is replaced after synthesis completes (via upsert).
+
+Explicit programmatic conflict detection (comparing stored claims against new extractions before synthesis) is deferred as a future enhancement if LLM-based detection proves insufficient.
 
 ### Automatic Cleanup
 
@@ -124,7 +123,7 @@ ORDER BY (similarity(topic_query, $2) * 0.7 + freshness * 0.3) DESC
 LIMIT 3;
 ```
 
-Ranking uses a weighted combination: 70% topic similarity + 30% freshness. This ensures newer memories get a boost over older but slightly more similar ones.
+Ranking uses a weighted combination: 70% topic similarity + 30% freshness. This ensures newer memories get a boost over older but slightly more similar ones. Note: freshness is normalized to each memory's own TTL window (`expires_at - created_at`), so a 10-day-old deep memory (30d TTL, freshness=0.67) ranks higher than a 10-day-old standard memory (14d TTL, freshness=0.29). This is intentional — deep research memories are higher quality and deserve a longer effective shelf life.
 
 **Limitations**: Character-level similarity may miss semantic matches ("AI regulation" vs. "machine learning policy"). Acceptable for Phase 1 — most users reuse similar vocabulary for related queries. Upgrade to pgvector embeddings if retrieval precision proves insufficient.
 
@@ -162,7 +161,7 @@ Memory storage runs fire-and-forget after synthesis (same pattern as credit fina
 - Row Level Security (RLS) on both tables — users can only access their own memories
 - Memory is deleted when user account is deleted (CASCADE)
 - No memory data is shared across users or used for system-level learning
-- Memory content is never exposed in API responses to the frontend (only used server-side in prompts)
+- Memory data flows through the client only as opaque pass-through: `search-client.tsx` retrieves memory via GET and passes fields (`filledGaps`, `priorResearch`, `priorContext`) to downstream API routes, but never renders memory content in the UI. The client acts as an orchestrator, not a consumer of memory data.
 
 ## Changes
 
@@ -195,6 +194,14 @@ CREATE INDEX idx_research_memory_expires ON research_memory(expires_at);
 ALTER TABLE research_memory ENABLE ROW LEVEL SECURITY;
 CREATE POLICY research_memory_user_policy ON research_memory
     FOR ALL USING (auth.uid() = user_id);
+
+-- DOWN migration (for reversibility per Constitution Principle VII):
+-- DROP POLICY IF EXISTS research_memory_user_policy ON research_memory;
+-- DROP TABLE IF EXISTS research_memory;
+-- DROP INDEX IF EXISTS idx_research_memory_user;
+-- DROP INDEX IF EXISTS idx_research_memory_topic;
+-- DROP INDEX IF EXISTS idx_research_memory_expires;
+-- Note: DROP EXTENSION pg_trgm only if no other tables use it
 ```
 
 ### Change 2: Database Schema — `user_expertise` Table
@@ -266,7 +273,7 @@ Stores compressed research memory after synthesis completes. Uses upsert logic �
 ```
 
 The route:
-1. Calls LLM to compress synthesis into ~150-word summary
+1. Calls LLM to compress synthesis into ~150-word summary (cost mitigation: uses cheapest available provider e.g. DeepSeek, caps input at 1000 words, skips compression entirely if synthesis is already <200 words)
 2. Checks for existing memory with similarity > 0.6 → upsert
 3. Sets `expires_at` based on search mode (14d standard, 30d deep)
 

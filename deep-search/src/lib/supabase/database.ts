@@ -13,6 +13,11 @@ export interface SearchHistoryEntry {
   bookmarked?: boolean;
   created_at?: string;
   deleted_at?: string | null;
+  // Content cache fields (populated after pipeline completes)
+  cached_content?: string | null;
+  cached_sources?: unknown[] | null;
+  cached_images?: unknown[] | null;
+  content_cached_at?: string | null;
 }
 
 export interface UserLimits {
@@ -430,6 +435,64 @@ export async function getBookmarkedCount(): Promise<number> {
   }
 
   return count || 0;
+}
+
+// ============================================
+// HISTORY CONTENT CACHE
+// ============================================
+
+/**
+ * Save final rendered content alongside a search history entry.
+ * Called fire-and-forget after pipeline completes.
+ * Content expires after 14 days (cleaned by cron job).
+ */
+export async function saveHistoryContent(
+  historyId: string,
+  content: string,
+  sources: unknown[],
+  images: unknown[]
+): Promise<void> {
+  const supabase = createClient();
+
+  const { error } = await supabase
+    .from('search_history')
+    .update({
+      cached_content: content,
+      cached_sources: sources,
+      cached_images: images,
+      content_cached_at: new Date().toISOString(),
+    })
+    .eq('id', historyId);
+
+  if (error) {
+    console.error('Error saving history content cache:', error);
+  }
+}
+
+/**
+ * Get cached content for a search history entry.
+ * Returns null if no cached content or if expired (cleaned by cron).
+ */
+export async function getHistoryContent(
+  historyId: string
+): Promise<{ content: string; sources: unknown[]; images: unknown[] } | null> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from('search_history')
+    .select('cached_content, cached_sources, cached_images, content_cached_at')
+    .eq('id', historyId)
+    .single();
+
+  if (error || !data?.cached_content) {
+    return null;
+  }
+
+  return {
+    content: data.cached_content,
+    sources: data.cached_sources || [],
+    images: data.cached_images || [],
+  };
 }
 
 // ============================================

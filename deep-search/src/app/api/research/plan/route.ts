@@ -44,16 +44,16 @@ interface RouterResult {
 }
 
 // Map query type to V2 planner prompt (two-dimensional classification)
-function getPlannerPrompt(queryType: QueryType, query: string, currentDate: string): string {
+function getPlannerPrompt(queryType: QueryType, query: string, currentDate: string, priorResearch?: string): string {
   switch (queryType) {
-    case 'shopping': return researchPlannerShoppingPromptV2(query, currentDate);
-    case 'travel': return researchPlannerTravelPromptV2(query, currentDate);
-    case 'technical': return researchPlannerTechnicalPromptV2(query, currentDate);
-    case 'academic': return researchPlannerAcademicPromptV2(query, currentDate);
-    case 'explanatory': return researchPlannerExplanatoryPromptV2(query, currentDate);
-    case 'finance': return researchPlannerFinancePromptV2(query, currentDate);
+    case 'shopping': return researchPlannerShoppingPromptV2(query, currentDate, priorResearch);
+    case 'travel': return researchPlannerTravelPromptV2(query, currentDate, priorResearch);
+    case 'technical': return researchPlannerTechnicalPromptV2(query, currentDate, priorResearch);
+    case 'academic': return researchPlannerAcademicPromptV2(query, currentDate, priorResearch);
+    case 'explanatory': return researchPlannerExplanatoryPromptV2(query, currentDate, priorResearch);
+    case 'finance': return researchPlannerFinancePromptV2(query, currentDate, priorResearch);
     case 'general':
-    default: return researchPlannerGeneralPromptV2(query, currentDate);
+    default: return researchPlannerGeneralPromptV2(query, currentDate, priorResearch);
   }
 }
 
@@ -108,7 +108,7 @@ async function classifyQuery(query: string, provider: LLMProvider | undefined): 
 
 export async function POST(req: NextRequest) {
   try {
-    const { query, provider } = await req.json();
+    const { query, provider, priorResearch } = await req.json();
     const llmProvider = provider as LLMProvider | undefined;
 
     if (!query) {
@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
 
     // Get the appropriate V2 planner prompt based on query type
     const currentDate = getCurrentDate();
-    const prompt = getPlannerPrompt(queryType, query, currentDate);
+    const prompt = getPlannerPrompt(queryType, query, currentDate, priorResearch);
 
     const messages: OpenAIMessage[] = [
       { role: 'system', content: 'You are a research planning expert. You analyze topics and identify distinct research angles for comprehensive coverage.' },

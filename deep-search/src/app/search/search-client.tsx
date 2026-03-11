@@ -25,7 +25,9 @@ function simpleHash(str: string): string {
 }
 import { Card } from '@/components/ui/card';
 import { cleanupFinalContent } from '@/lib/text-cleanup';
-import { addSearchToHistory, toggleBookmark } from '@/lib/supabase/database';
+import type { MemoryRetrievalResult } from '@/lib/research-memory';
+import { formatPriorResearchXML, formatPriorContextXML, formatUserExpertiseXML } from '@/lib/research-memory';
+import { addSearchToHistory, toggleBookmark, saveHistoryContent, getHistoryContent } from '@/lib/supabase/database';
 import ThreadView from '@/components/ThreadView';
 import { createThread, getThread, getThreadMessages, addMessage, updateThreadSummary } from '@/lib/supabase/threads';
 // Thread summary generated via API route (server-side LLM access)
@@ -48,11 +50,12 @@ interface SearchClientProps {
   deep?: boolean;
   fileIds?: string[];
   threadId?: string;
+  historyId?: string;
 }
 
 type LoadingStage = 'refining' | 'searching' | 'summarizing' | 'proofreading' | 'complete' | 'planning' | 'researching' | 'extracting' | 'synthesizing' | 'reframing' | 'exploring' | 'ideating' | 'analyzing_gaps' | 'deepening';
 
-export default function SearchClient({ query, provider = 'deepseek', mode = 'web', deep = false, fileIds = [], threadId }: SearchClientProps) {
+export default function SearchClient({ query, provider = 'deepseek', mode = 'web', deep = false, fileIds = [], threadId, historyId }: SearchClientProps) {
   const [loadingStage, setLoadingStage] = useState<LoadingStage>('searching');
   const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
   const [streamingContent, setStreamingContent] = useState<string>('');
@@ -286,6 +289,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
               if (entry?.id) {
                 setHistoryEntryId(entry.id);
                 setIsBookmarked(entry.bookmarked || false);
+                // Cache content alongside history entry (fire-and-forget)
+                saveHistoryContent(entry.id, newContent, fetchedSources, fetchedImages)
+                  .catch(err => console.error('Failed to cache history content:', err));
                 return; // Success
               }
             } catch (err) {
@@ -439,21 +445,35 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       let tavilyQueryCount = 0;
 
       try {
-        // Step 1: Create research plan and check limits in parallel (with timeout)
+        // Step 1: Retrieve memory first (fast DB lookup), then plan + limit check in parallel
+        // Memory retrieval is fast (~50ms) and its data feeds into the plan API
+        const retrievedMemory: MemoryRetrievalResult = await fetch(`/api/research/memory?query=${encodeURIComponent(query)}`)
+          .then(res => res.json())
+          .catch(() => ({ memories: [], hasMemory: false } as MemoryRetrievalResult));
+
+        // Generate prior research XML for planner if memory exists
+        const priorResearchXML = retrievedMemory?.hasMemory
+          ? formatPriorResearchXML(retrievedMemory.memories)
+          : undefined;
+
         // Use 'deep' mode for credit check if deep research is enabled
         const creditMode = deep ? 'deep' : 'pro';
         const initialPromise = Promise.all([
           fetch('/api/research/plan', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query, provider }),
+            body: JSON.stringify({
+              query,
+              provider,
+              ...(priorResearchXML && { priorResearch: priorResearchXML }),
+            }),
             signal: abortController.signal
           }),
           fetch('/api/check-limit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ mode: creditMode })
-          }).then(res => res.json())
+          }).then(res => res.json()),
         ]);
 
         const [planResponse, limitCheck] = await raceWithTimeout(
@@ -816,6 +836,17 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             // Full R2: gap analysis + searches + extractions
 
           // Analyze gaps in round 1 research
+          // Build filledGaps from memory for gap analyzer
+          const memoryFilledGaps = retrievedMemory?.hasMemory
+            ? retrievedMemory.memories.flatMap(m => m.filledGaps || [])
+            : [];
+          const memoryFilledGapsXML = memoryFilledGaps.length > 0
+            ? memoryFilledGaps.map(g => `        <gap>${g}</gap>`).join('\n')
+            : undefined;
+          const memoryAge = retrievedMemory?.hasMemory && retrievedMemory.memories.length > 0
+            ? retrievedMemory.memories[0].ageInDays
+            : undefined;
+
           const gapResponse = await fetch('/api/research/analyze-gaps', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -830,6 +861,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
                 unclassifiedCount: allSources.filter(s => tagSourceAuthority(s.url) === 'unclassified').length,
               },
               ...(currentQueryType && { queryType: currentQueryType }),
+              ...(memoryFilledGapsXML && { filledGaps: memoryFilledGapsXML, memoryAge }),
             }),
             signal: abortController.signal
           });
@@ -1055,6 +1087,14 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             },
             ...(currentQueryType && { queryType: currentQueryType }),
             ...(competitiveCluster && { competitiveCluster }),
+            ...(retrievedMemory?.hasMemory && {
+              priorContext: formatPriorContextXML(retrievedMemory.memories),
+            }),
+            ...(retrievedMemory?.expertise && currentQueryType && {
+              userExpertise: formatUserExpertiseXML(
+                retrievedMemory.expertise.find(e => e.domain === currentQueryType)
+              ),
+            }),
           }),
           signal: abortController.signal
         });
@@ -1135,6 +1175,24 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
         // Finalize credits with actual Tavily query count (fire-and-forget)
         finalizeCredits(reservationId, tavilyQueryCount);
+
+        // Store research memory fire-and-forget (same pattern as credit finalization)
+        fetch('/api/research/memory', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query,
+            synthesisContent: proofreadContent,
+            entities: [],
+            filledGaps: researchGaps?.map(g => g.gap) || [],
+            openGaps: [],
+            contradictions: [],
+            keyClaims: [],
+            searchMode: deep ? 'deep' : 'research',
+            sourceCount: allSources.length,
+            ...(currentQueryType && { queryType: currentQueryType }),
+          }),
+        }).catch(err => console.error('[Research Memory] Failed to store:', err));
 
         transitionToContent(proofreadContent, allSources, allImages, mode, provider);
 
@@ -1818,14 +1876,41 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       }
     };
 
-    // Choose pipeline based on mode
-    if (mode === 'pro') {
-      performResearch();
-    } else if (mode === 'brainstorm') {
-      performBrainstorm();
-    } else {
-      performSearch();
-    }
+    // Check for cached content from history (skip pipeline if available)
+    const tryLoadCachedContent = async (): Promise<boolean> => {
+      if (!historyId) return false;
+      try {
+        const cached = await getHistoryContent(historyId);
+        if (!cached || !isActive) return false;
+        // Display cached content directly
+        setHistoryEntryId(historyId);
+        transitionToContent(
+          cached.content,
+          cached.sources as Source[],
+          (cached.images || []) as SearchImage[],
+          mode,
+          provider,
+          true,  // markComplete
+          true   // skipHistory (already saved)
+        );
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    // Try cache first, then fall back to pipeline
+    tryLoadCachedContent().then(loaded => {
+      if (loaded || !isActive) return;
+      // Choose pipeline based on mode
+      if (mode === 'pro') {
+        performResearch();
+      } else if (mode === 'brainstorm') {
+        performBrainstorm();
+      } else {
+        performSearch();
+      }
+    });
 
     return () => {
       isActive = false;
@@ -1834,7 +1919,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         clearTimeout(updateTimeoutRef.current);
       }
     };
-  }, [query, provider, mode, deep, fileIds, scheduleContentUpdate, streamResponse, transitionToContent]);
+  }, [query, provider, mode, deep, fileIds, historyId, scheduleContentUpdate, streamResponse, transitionToContent]);
 
   // Handle bookmark toggle - must be before any early returns
   const handleToggleBookmark = useCallback(async () => {

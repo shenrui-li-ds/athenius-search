@@ -130,7 +130,7 @@ function formatExtractionsForSynthesis(extractions: AspectExtraction[]): string 
 
 export async function POST(req: NextRequest) {
   try {
-    const { query, aspectResults, extractedData, stream = true, provider, deep = false, gapDescriptions = [], crossCuttingEntities = [], sourceAuthority, queryType, competitiveCluster } = await req.json();
+    const { query, aspectResults, extractedData, stream = true, provider, deep = false, gapDescriptions = [], crossCuttingEntities = [], sourceAuthority, queryType, competitiveCluster, priorContext, userExpertise } = await req.json();
     const llmProvider = provider as LLMProvider | undefined;
 
     // Support both old format (aspectResults) and new format (extractedData)
@@ -228,8 +228,8 @@ Use the source index numbers [1], [2], etc. as shown in the results for your cit
     // Create the complete prompt - use deep research synthesizer if deep mode enabled
     const typedCompetitiveCluster = competitiveCluster as CompetitiveCluster | undefined;
     const synthesizerPrompt = deep
-      ? deepResearchSynthesizerPrompt(query, currentDate, detectedLanguage, gapDescriptions, queryType, typedCompetitiveCluster)
-      : researchSynthesizerPrompt(query, currentDate, detectedLanguage);
+      ? deepResearchSynthesizerPrompt(query, currentDate, detectedLanguage, gapDescriptions, queryType, typedCompetitiveCluster, priorContext, userExpertise)
+      : researchSynthesizerPrompt(query, currentDate, detectedLanguage, priorContext, userExpertise);
 
     const targetLength = deep ? '1000-1200 words' : '800-1000 words';
 

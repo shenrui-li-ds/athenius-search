@@ -411,6 +411,8 @@ describe('/api/research/synthesize', () => {
         gapDescriptions,
         undefined, // queryType
         undefined, // competitiveCluster
+        undefined, // priorContext
+        undefined, // userExpertise
       );
     });
 
