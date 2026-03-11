@@ -4,6 +4,8 @@ import {
   proofreadContentPrompt,
   proofreadParagraphPrompt,
   researchPlannerPrompt,
+  researchPlannerFinancePromptV2,
+  researchPlannerGeneralPromptV2,
   researchSynthesizerPrompt,
   deepResearchSynthesizerPrompt,
   aspectExtractorPrompt,
@@ -788,6 +790,149 @@ describe('Prompts', () => {
         const prompt = brainstormReframePrompt('test', 'date');
         expect(prompt).toContain('Your ONLY task is to generate creative search angles');
         expect(prompt).toContain('JSON array of angles');
+      });
+    });
+  });
+
+  // ════════════════════════════════════════════════════════════════════
+  // Research Memory — prompt sections
+  // ════════════════════════════════════════════════════════════════════
+
+  describe('research memory — prompt sections', () => {
+    describe('gapAnalyzerPrompt — previouslyFilledGaps', () => {
+      it('includes previouslyFilledGaps when filledGaps provided', () => {
+        const filledGapsXML = '        <gap>metabolic mechanisms</gap>\n        <gap>cardiovascular effects</gap>';
+        const prompt = gapAnalyzerPrompt('IF for athletes', 'extracted data', 'English', filledGapsXML, 12);
+        expect(prompt).toContain('<previouslyFilledGaps');
+        expect(prompt).toContain('age="12 days"');
+        expect(prompt).toContain('<gap>metabolic mechanisms</gap>');
+        expect(prompt).toContain('<gap>cardiovascular effects</gap>');
+      });
+
+      it('includes caveat about previously investigated gaps', () => {
+        const filledGapsXML = '        <gap>test gap</gap>';
+        const prompt = gapAnalyzerPrompt('test', 'data', 'English', filledGapsXML, 5);
+        expect(prompt).toContain('Avoid re-suggesting');
+        expect(prompt).toContain('contradicts the prior findings');
+      });
+
+      it('does NOT include previouslyFilledGaps when not provided', () => {
+        const prompt = gapAnalyzerPrompt('test', 'data', 'English');
+        expect(prompt).not.toContain('<previouslyFilledGaps');
+        expect(prompt).not.toContain('Avoid re-suggesting');
+      });
+
+      it('does NOT include previouslyFilledGaps when undefined', () => {
+        const prompt = gapAnalyzerPrompt('test', 'data', 'English', undefined, undefined);
+        expect(prompt).not.toContain('<previouslyFilledGaps');
+      });
+
+      it('previouslyFilledGaps appears after inputSecurity and before context', () => {
+        const filledGapsXML = '        <gap>test</gap>';
+        const prompt = gapAnalyzerPrompt('test', 'data', 'English', filledGapsXML, 3);
+        const securityEnd = prompt.indexOf('</inputSecurity>');
+        const filledGapsStart = prompt.indexOf('<previouslyFilledGaps');
+        const contextStart = prompt.indexOf('<context>');
+        expect(filledGapsStart).toBeGreaterThan(securityEnd);
+        expect(filledGapsStart).toBeLessThan(contextStart);
+      });
+    });
+
+    describe('researchPlannerPrompt — priorResearch', () => {
+      const priorResearchXML = `    <priorResearch age="5 days">
+        <summary>NVIDIA showed strong Q3 earnings with 200% YoY revenue growth.</summary>
+    </priorResearch>`;
+
+      it('includes priorResearch when provided', () => {
+        const prompt = researchPlannerPrompt('NVIDIA vs AMD', 'March 11, 2026', priorResearchXML);
+        expect(prompt).toContain('<priorResearch');
+        expect(prompt).toContain('NVIDIA showed strong Q3 earnings');
+      });
+
+      it('does NOT include priorResearch when not provided', () => {
+        const prompt = researchPlannerPrompt('NVIDIA vs AMD', 'March 11, 2026');
+        expect(prompt).not.toContain('<priorResearch');
+      });
+
+      it('priorResearch appears between description and context', () => {
+        const prompt = researchPlannerPrompt('test', 'March 11, 2026', priorResearchXML);
+        const descEnd = prompt.indexOf('</description>');
+        const priorStart = prompt.indexOf('<priorResearch');
+        const contextStart = prompt.indexOf('<context>');
+        expect(priorStart).toBeGreaterThan(descEnd);
+        expect(priorStart).toBeLessThan(contextStart);
+      });
+    });
+
+    describe('V2 planner prompts — priorResearch', () => {
+      const priorResearchXML = `    <priorResearch age="3 days">
+        <summary>Prior research summary.</summary>
+    </priorResearch>`;
+
+      it('includes priorResearch in finance V2 prompt', () => {
+        const prompt = researchPlannerFinancePromptV2('NVIDIA stock', 'March 11, 2026', priorResearchXML);
+        expect(prompt).toContain('<priorResearch');
+        expect(prompt).toContain('Prior research summary.');
+      });
+
+      it('includes priorResearch in general V2 prompt', () => {
+        const prompt = researchPlannerGeneralPromptV2('test query', 'March 11, 2026', priorResearchXML);
+        expect(prompt).toContain('<priorResearch');
+      });
+
+      it('does NOT include priorResearch when not provided in V2 prompts', () => {
+        const prompt = researchPlannerFinancePromptV2('test', 'March 11, 2026');
+        expect(prompt).not.toContain('<priorResearch');
+      });
+    });
+
+    describe('researchSynthesizerPrompt — priorContext', () => {
+      const priorContextXML = `    <priorContext age="7 days">
+        <summary>Previous findings on quantum computing.</summary>
+    </priorContext>`;
+      const userExpertiseXML = `    <userExpertise domain="technical" level="advanced" />`;
+
+      it('includes priorContext when provided', () => {
+        const prompt = researchSynthesizerPrompt('quantum computing', 'March 11, 2026', 'English', priorContextXML);
+        expect(prompt).toContain('<priorContext');
+        expect(prompt).toContain('Previous findings on quantum computing.');
+      });
+
+      it('includes userExpertise when provided', () => {
+        const prompt = researchSynthesizerPrompt('quantum computing', 'March 11, 2026', 'English', undefined, userExpertiseXML);
+        expect(prompt).toContain('<userExpertise');
+        expect(prompt).toContain('advanced');
+      });
+
+      it('does NOT include priorContext or userExpertise when not provided', () => {
+        const prompt = researchSynthesizerPrompt('test', 'March 11, 2026');
+        expect(prompt).not.toContain('<priorContext');
+        expect(prompt).not.toContain('<userExpertise');
+      });
+    });
+
+    describe('deepResearchSynthesizerPrompt — priorContext (synced)', () => {
+      const priorContextXML = `    <priorContext age="7 days">
+        <summary>Previous findings.</summary>
+    </priorContext>`;
+      const userExpertiseXML = `    <userExpertise domain="finance" level="intermediate" />`;
+
+      it('includes priorContext when provided', () => {
+        const prompt = deepResearchSynthesizerPrompt('test', 'March 11, 2026', 'English', [], undefined, undefined, priorContextXML);
+        expect(prompt).toContain('<priorContext');
+        expect(prompt).toContain('Previous findings.');
+      });
+
+      it('includes userExpertise when provided', () => {
+        const prompt = deepResearchSynthesizerPrompt('test', 'March 11, 2026', 'English', [], undefined, undefined, undefined, userExpertiseXML);
+        expect(prompt).toContain('<userExpertise');
+        expect(prompt).toContain('intermediate');
+      });
+
+      it('does NOT include priorContext when not provided', () => {
+        const prompt = deepResearchSynthesizerPrompt('test', 'March 11, 2026');
+        expect(prompt).not.toContain('<priorContext');
+        expect(prompt).not.toContain('<userExpertise');
       });
     });
   });

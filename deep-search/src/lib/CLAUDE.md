@@ -400,18 +400,18 @@ XML-structured prompts for consistent LLM behavior.
 | Prompt | Purpose |
 |--------|---------|
 | `researchRouterPrompt(query)` | Classify query type for specialized planning |
-| `researchPlannerPrompt(query, date)` | General fallback: 3-4 research angles |
-| `researchPlannerShoppingPrompt(query, date)` | Shopping: product discovery → reviews → comparison |
-| `researchPlannerTravelPrompt(query, date)` | Travel: attractions → activities → accommodations → tips |
-| `researchPlannerTechnicalPrompt(query, date)` | Technical: specs → expert analysis → comparisons |
-| `researchPlannerAcademicPrompt(query, date)` | Academic: foundations → findings → methodology → debates |
-| `researchPlannerExplanatoryPrompt(query, date)` | Explanatory: definition → mechanism → examples → misconceptions |
-| `researchPlannerFinancePrompt(query, date)` | Finance: sub-type-aware aspects (stock_analysis, macro, personal_finance, crypto, general_finance) |
+| `researchPlannerPrompt(query, date, priorResearch?)` | General fallback: 3-4 research angles |
+| `researchPlannerShoppingPrompt(query, date, priorResearch?)` | Shopping: product discovery → reviews → comparison |
+| `researchPlannerTravelPrompt(query, date, priorResearch?)` | Travel: attractions → activities → accommodations → tips |
+| `researchPlannerTechnicalPrompt(query, date, priorResearch?)` | Technical: specs → expert analysis → comparisons |
+| `researchPlannerAcademicPrompt(query, date, priorResearch?)` | Academic: foundations → findings → methodology → debates |
+| `researchPlannerExplanatoryPrompt(query, date, priorResearch?)` | Explanatory: definition → mechanism → examples → misconceptions |
+| `researchPlannerFinancePrompt(query, date, priorResearch?)` | Finance: sub-type-aware aspects (stock_analysis, macro, personal_finance, crypto, general_finance) |
 | `detectFinanceSubType(query)` | Programmatic regex classifier → `FinanceSubType` (<1ms, no LLM) |
 | `aspectExtractorPrompt(aspect, query, lang?, queryType?)` | Extract structured knowledge with `<confidenceCriteria>`, `<evidenceTypes>`, and `<inputSecurity>` for injection defense; when `queryType === 'finance'`, adds financialMetrics/valuationData/riskFactors |
-| `researchSynthesizerPrompt(query, date)` | Synthesize extracted data into 800-1000 word document with `<evidenceEvaluation>` and `<inputSecurity>` (synced with deepResearchSynthesizerPrompt) |
-| `deepResearchSynthesizerPrompt(query, date, lang, gapDescriptions, queryType?, competitiveCluster?)` | Deep mode: 1000-1200 words with `<evidenceEvaluation>`, `<gapResolution>`, and `<inputSecurity>` (synced with researchSynthesizerPrompt) |
-| `gapAnalyzerPrompt(query, extractedSummary, lang)` | Analyze research for knowledge gaps including `contradicted_claim` type. Includes `<inputSecurity>` for injection defense. |
+| `researchSynthesizerPrompt(query, date, priorContext?, userExpertise?)` | Synthesize extracted data into 800-1000 word document with `<evidenceEvaluation>` and `<inputSecurity>` (synced with deepResearchSynthesizerPrompt) |
+| `deepResearchSynthesizerPrompt(query, date, lang, gapDescriptions, queryType?, competitiveCluster?, priorContext?, userExpertise?)` | Deep mode: 1000-1200 words with `<evidenceEvaluation>`, `<gapResolution>`, and `<inputSecurity>` (synced with researchSynthesizerPrompt) |
+| `gapAnalyzerPrompt(query, extractedSummary, lang, filledGaps?, memoryAge?)` | Analyze research for knowledge gaps including `contradicted_claim` type. Includes `<inputSecurity>` for injection defense. |
 | `researchProofreadPrompt()` | Research-specific proofreading (preserves depth, improves flow) |
 
 **Query Type Classification:**
@@ -640,6 +640,31 @@ generateThreadSummary(previousSummary: string | null, latestQuery: string, lates
 - Output constrained to < 150 words via prompt instruction
 - Graceful degradation: returns previous summary on failure
 - Called fire-and-forget after each message completes
+
+### `research-memory.ts` - Cross-Session Research Memory
+
+Provides compression, formatting, and expertise utilities for the research memory system.
+
+**Key Functions:**
+
+| Function | Description |
+|----------|-------------|
+| `compressResearchSummary(synthesis, query)` | Compress synthesis to ~150 words via DeepSeek. Skips if <200 words. |
+| `formatFilledGapsXML(memories)` | Format gap data as XML for gap analyzer prompt |
+| `formatPriorResearchXML(memories)` | Format prior research as XML for planner prompt |
+| `formatPriorContextXML(memories)` | Format prior context as XML for synthesizer prompt |
+| `formatUserExpertiseXML(expertise)` | Format expertise as XML for synthesizer prompt |
+| `calculateExpertiseLevel(queryCount, lastSearchedAt)` | Returns beginner/intermediate/advanced with 90-day decay |
+| `calculateAgeInDays(createdAt)` | Calculate memory staleness |
+| `getTTLDays(searchMode)` | Returns 14 (research) or 30 (deep) day TTL |
+
+**Types:**
+- `ResearchMemory` — stored memory with topic, summary, gaps, claims, entities
+- `MemoryRetrievalResult` — API response with memories array and expertise
+- `UserExpertise` — domain expertise with level and query count
+- `ExpertiseLevel` — `'beginner' | 'intermediate' | 'advanced'`
+
+**Expertise Decay:** Effective `query_count` is halved if `last_searched_at` > 90 days ago.
 
 ### `error-types.ts` - Standardized Error Handling
 

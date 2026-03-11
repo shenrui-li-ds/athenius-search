@@ -1357,6 +1357,10 @@ function PreferencesTab() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [memoryEnabled, setMemoryEnabled] = useState(false);
+  const [memoryLoading, setMemoryLoading] = useState(true);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
   const t = useTranslations('account');
 
   useEffect(() => {
@@ -1370,7 +1374,19 @@ function PreferencesTab() {
         setIsLoading(false);
       }
     };
+    const loadMemoryPref = async () => {
+      try {
+        const res = await fetch('/api/research/memory/preference');
+        const data = await res.json();
+        setMemoryEnabled(data.enabled ?? false);
+      } catch {
+        // Default to false on error
+      } finally {
+        setMemoryLoading(false);
+      }
+    };
     loadPreferences();
+    loadMemoryPref();
   }, []);
 
   const handleModelChange = async (modelId: ModelId) => {
@@ -1400,6 +1416,36 @@ function PreferencesTab() {
       console.error('Failed to update mode:', error);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleMemoryToggle = async () => {
+    const newValue = !memoryEnabled;
+    setMemoryEnabled(newValue);
+    try {
+      await fetch('/api/research/memory/preference', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: newValue }),
+      });
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2000);
+    } catch {
+      setMemoryEnabled(!newValue); // Revert on error
+    }
+  };
+
+  const handleClearMemory = async () => {
+    setIsClearing(true);
+    try {
+      await fetch('/api/research/memory', { method: 'DELETE' });
+      setClearConfirmOpen(false);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2000);
+    } catch (error) {
+      console.error('Failed to clear memory:', error);
+    } finally {
+      setIsClearing(false);
     }
   };
 
@@ -1530,6 +1576,63 @@ function PreferencesTab() {
               )}
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* Research Memory */}
+      <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+        <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-1">Research Memory</h3>
+        <p className="text-xs text-[var(--text-muted)] mb-4">
+          Store compressed summaries of your research to improve future searches on similar topics.
+        </p>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-[var(--text-primary)]">Enable Research Memory</p>
+              <p className="text-xs text-[var(--text-muted)]">When enabled, research results are stored and used to enhance future searches.</p>
+            </div>
+            <button
+              onClick={handleMemoryToggle}
+              disabled={memoryLoading}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                memoryEnabled ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'
+              } disabled:opacity-50`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                memoryEnabled ? 'translate-x-6' : 'translate-x-1'
+              }`} />
+            </button>
+          </div>
+
+          {memoryEnabled && (
+            <div className="pt-2 border-t border-[var(--border)]">
+              {clearConfirmOpen ? (
+                <div className="flex items-center gap-3">
+                  <p className="text-xs text-[var(--text-muted)]">Clear all stored research memories?</p>
+                  <button
+                    onClick={handleClearMemory}
+                    disabled={isClearing}
+                    className="px-3 py-1.5 text-xs font-medium rounded-md bg-red-500/20 text-red-500 hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                  >
+                    {isClearing ? 'Clearing...' : 'Confirm'}
+                  </button>
+                  <button
+                    onClick={() => setClearConfirmOpen(false)}
+                    className="px-3 py-1.5 text-xs font-medium rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setClearConfirmOpen(true)}
+                  className="px-3 py-1.5 text-xs font-medium rounded-md border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--text-muted)] transition-colors"
+                >
+                  Clear Research Memory
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -111,7 +111,8 @@ Generates a multi-angle research plan with intelligent query routing for special
 ```json
 {
   "query": "research topic",
-  "provider": "deepseek"
+  "provider": "deepseek",
+  "priorResearch": "(optional) compressed summary from research memory — used to avoid re-covering known ground"
 }
 ```
 
@@ -236,7 +237,9 @@ Synthesizes extracted knowledge or raw search results into a comprehensive resea
     }
   ],
   "stream": true,
-  "provider": "deepseek"
+  "provider": "deepseek",
+  "priorContext": "(optional) compressed memory summary — injected as context so synthesis builds on prior research",
+  "userExpertise": "(optional) array of { domain, effectiveLevel } — adjusts synthesis depth/terminology for user's expertise level"
 }
 ```
 
@@ -315,7 +318,9 @@ Analyzes extracted research data to identify knowledge gaps for Round 2 searches
   "crossCuttingEntities": [
     { "name": "Tesla", "normalizedName": "tesla", "type": "organization", "aspects": ["automotive", "energy"], "count": 2 }
   ],
-  "sourceAuthority": { "highAuthorityCount": 5, "unclassifiedCount": 12 }
+  "sourceAuthority": { "highAuthorityCount": 5, "unclassifiedCount": 12 },
+  "filledGaps": "(optional) array of gap descriptions already addressed in prior research memory — excluded from gap analysis results",
+  "memoryAge": "(optional) number of days since prior memory was stored — triggers 'needs_recency' gap if memory is stale"
 }
 ```
 
@@ -473,6 +478,75 @@ GET /api/research/cache-round2?query=quantum%20computing&provider=deepseek&round
 - Uses R1 extractions hash to ensure R2 cache is invalidated when R1 changes
 - Stores R2-only data: gaps, R2 extractions, R2 sources, R2 images
 - Used by search-client.tsx to skip gap analysis and R2 searches on retry
+
+### `/api/research/memory` - Research Memory
+
+CRUD operations for cross-session research memory. Stores compressed summaries for future research enhancement.
+
+**GET - Retrieve Memories:**
+```
+GET /api/research/memory?query=quantum%20computing
+```
+
+**Response:**
+```json
+{
+  "memories": [
+    {
+      "id": "uuid",
+      "topicQuery": "quantum computing applications",
+      "researchSummary": "Compressed 150-word summary...",
+      "filledGaps": ["practical examples", "expert opinions"],
+      "openGaps": [],
+      "resolvedContradictions": [],
+      "keyClaims": [{"statement": "...", "confidence": "established"}],
+      "ageInDays": 5,
+      "searchMode": "deep",
+      "entities": [{"name": "IBM", "normalizedName": "ibm", "type": "organization"}],
+      "sourceCount": 12
+    }
+  ],
+  "hasMemory": true,
+  "expertise": [
+    {"domain": "technical", "queryCount": 15, "effectiveLevel": "intermediate", "lastSearchedAt": "..."}
+  ]
+}
+```
+
+**Features:**
+- Uses pg_trgm fuzzy matching (70% topic similarity + 30% freshness)
+- Returns up to 3 memories with similarity > 0.2
+- Checks `research_memory_enabled` preference — returns empty if disabled
+- RLS enforces user-scoped access
+
+**POST - Store Memory:**
+```json
+{
+  "query": "research topic",
+  "synthesisContent": "full synthesis text",
+  "entities": [],
+  "filledGaps": ["gap1"],
+  "searchMode": "research",
+  "sourceCount": 10,
+  "queryType": "technical"
+}
+```
+
+**Features:**
+- Compresses synthesis via DeepSeek (fire-and-forget)
+- Upserts: replaces existing memory with similarity > 0.6
+- TTL: 14 days (research) / 30 days (deep)
+- Increments user expertise for detected domain
+- Checks `research_memory_enabled` — skips if disabled
+
+**DELETE - Clear All:**
+Clears all memories and expertise for authenticated user.
+
+### `/api/research/memory/preference` - Memory Preference Toggle
+
+**GET:** Returns `{ enabled: boolean }` for current user.
+
+**POST:** `{ enabled: boolean }` to toggle research memory on/off.
 
 ### `/api/brainstorm/reframe` - Creative Angle Generation
 Generates creative search angles using lateral thinking and cross-domain inspiration.

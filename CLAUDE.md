@@ -191,6 +191,35 @@ Synthesis
 - `/api/research/cache-round1` - GET/POST for Round 1 data caching
 - `/api/research/cache-round2` - GET/POST for Round 2 data caching (gaps + R2 extractions)
 
+### Research Memory (Cross-Session)
+
+Stores compressed summaries of research sessions to enhance future related searches. Opt-in via Account > Preferences.
+
+**Pipeline Integration:**
+```
+Memory Retrieval (fast DB lookup)
+    ↓
+Plan + Limit Check (parallel)
+    ↓ priorResearch → planner generates complementary angles
+Standard Pipeline (search → extract → gap analysis → synthesize)
+    ↓ filledGaps → gap analyzer avoids redundant gaps
+    ↓ priorContext + userExpertise → synthesizer references prior findings
+    ↓
+Memory Storage (fire-and-forget after synthesis)
+```
+
+**Staleness Strategy:**
+| Search Mode | Memory TTL | Expertise Decay |
+|-------------|-----------|-----------------|
+| Research | 14 days | Halve at 90 days |
+| Deep | 30 days | Halve at 90 days |
+
+**Key Components:**
+- `research-memory.ts` — compression, formatting, expertise calculation
+- `/api/research/memory` — GET/POST/DELETE with pg_trgm fuzzy matching
+- `004_research_memory.sql` — tables, RLS, RPC functions, cron cleanup
+- Account Preferences — toggle + clear button
+
 ### Brainstorm Pipeline
 
 The Brainstorm mode uses lateral thinking and cross-domain inspiration to generate creative ideas:
