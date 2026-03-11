@@ -43,6 +43,8 @@ Add defense-in-depth against prompt injection attacks across all LLM prompts. Cu
 - Planner prompts (`researchPlannerPrompt` variants) — output is structured JSON plan, not user-facing; lower risk
 - Proofread prompts — input is LLM-generated content, not untrusted external data
 
+**Constitution Principle VII alignment**: The constitution mandates "Input validation MUST occur at system boundaries." For LLM system boundaries, the "input" is untrusted text interpolated into prompts. Traditional input sanitization (regex stripping) is counterproductive here — adversaries trivially obfuscate patterns, and aggressive filtering creates false positives on legitimate queries. Instead, instruction hierarchy in system prompts and sandwich defense in user messages serve as the input validation layer: they teach the LLM to treat interpolated content as untrusted data, not executable instructions. This is the effective equivalent of parameterized queries for LLM interactions.
+
 ## Threat Model
 
 ### Attack Surfaces

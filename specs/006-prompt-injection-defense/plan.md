@@ -44,6 +44,7 @@ Changes are ordered by risk level (highest-risk prompts first). Each change is i
 3. Cross-model testing: Gemini Flash, Gemini Pro, DeepSeek
 4. Update `deep-search/src/lib/CLAUDE.md` prompt documentation
 5. Update `deep-search/src/app/api/CLAUDE.md` with security notes
+6. Quality gates: `npm run lint`, `npm run build`, all tests pass
 
 ## Files Modified
 
