@@ -389,8 +389,8 @@ XML-structured prompts for consistent LLM behavior.
 
 | Prompt | Purpose |
 |--------|---------|
-| `refineSearchQueryPrompt(query, date)` | Optimize search query and generate search intent (returns JSON with `intent` and `query` fields) |
-| `summarizeSearchResultsPrompt(query, date)` | Generate cited summary with evidence-aware analysis (concise, 2-3 sentences per paragraph). Includes `<evidenceAnalysis>` section for source attribution and conflict handling. |
+| `refineSearchQueryPrompt(query, date)` | Optimize search query and generate search intent (returns JSON with `intent` and `query` fields). Includes `<inputSecurity>` for query injection defense. |
+| `summarizeSearchResultsPrompt(query, date)` | Generate cited summary with evidence-aware analysis (concise, 2-3 sentences per paragraph). Includes `<evidenceAnalysis>` for source attribution and `<inputSecurity>` for injection defense (4 principles: untrusted data, instruction hierarchy, system prompt protection, output format). |
 | `proofreadContentPrompt()` | Full content proofreading |
 | `proofreadParagraphPrompt()` | Light paragraph cleanup |
 | `generateRelatedSearchesPrompt(query, topics)` | Generate related queries |
@@ -408,10 +408,10 @@ XML-structured prompts for consistent LLM behavior.
 | `researchPlannerExplanatoryPrompt(query, date)` | Explanatory: definition → mechanism → examples → misconceptions |
 | `researchPlannerFinancePrompt(query, date)` | Finance: sub-type-aware aspects (stock_analysis, macro, personal_finance, crypto, general_finance) |
 | `detectFinanceSubType(query)` | Programmatic regex classifier → `FinanceSubType` (<1ms, no LLM) |
-| `aspectExtractorPrompt(aspect, query, lang?, queryType?)` | Extract structured knowledge with `<confidenceCriteria>` and `<evidenceTypes>` for typed claims (data/study/expert_opinion/anecdotal); when `queryType === 'finance'`, adds financialMetrics/valuationData/riskFactors |
-| `researchSynthesizerPrompt(query, date)` | Synthesize extracted data into 800-1000 word document with `<evidenceEvaluation>` (replaces confidenceHandling): evidence hierarchy, single-source attribution, perspective gap detection |
-| `deepResearchSynthesizerPrompt(query, date, lang, gapDescriptions, queryType?, competitiveCluster?)` | Deep mode: 1000-1200 words with `<evidenceEvaluation>` and `<gapResolution>` for honest gap assessment; when `queryType === 'finance'`, adds bear case section; when `competitiveCluster` present, adds comparison table instruction |
-| `gapAnalyzerPrompt(query, extractedSummary, lang)` | Analyze research for knowledge gaps including `contradicted_claim` type for conflict resolution (returns JSON array of gaps) |
+| `aspectExtractorPrompt(aspect, query, lang?, queryType?)` | Extract structured knowledge with `<confidenceCriteria>`, `<evidenceTypes>`, and `<inputSecurity>` for injection defense; when `queryType === 'finance'`, adds financialMetrics/valuationData/riskFactors |
+| `researchSynthesizerPrompt(query, date)` | Synthesize extracted data into 800-1000 word document with `<evidenceEvaluation>` and `<inputSecurity>` (synced with deepResearchSynthesizerPrompt) |
+| `deepResearchSynthesizerPrompt(query, date, lang, gapDescriptions, queryType?, competitiveCluster?)` | Deep mode: 1000-1200 words with `<evidenceEvaluation>`, `<gapResolution>`, and `<inputSecurity>` (synced with researchSynthesizerPrompt) |
+| `gapAnalyzerPrompt(query, extractedSummary, lang)` | Analyze research for knowledge gaps including `contradicted_claim` type. Includes `<inputSecurity>` for injection defense. |
 | `researchProofreadPrompt()` | Research-specific proofreading (preserves depth, improves flow) |
 
 **Query Type Classification:**
@@ -446,8 +446,8 @@ The synthesizer uses deterministic rules based on content type:
 
 | Prompt | Purpose |
 |--------|---------|
-| `brainstormReframePrompt(query, date)` | Generate 4-6 creative angles from unexpected domains (lateral thinking) |
-| `brainstormSynthesizerPrompt(query, date, lang)` | Synthesize cross-domain inspiration into idea cards and experiments |
+| `brainstormReframePrompt(query, date)` | Generate 4-6 creative angles from unexpected domains (lateral thinking). Includes `<inputSecurity>` for query injection defense. |
+| `brainstormSynthesizerPrompt(query, date, lang)` | Synthesize cross-domain inspiration into idea cards and experiments. Includes `<inputSecurity>` for injection defense. |
 
 **Key Differences: Research vs Brainstorm**
 
@@ -480,6 +480,14 @@ The synthesizer uses deterministic rules based on content type:
 - Include examples where helpful
 - Specify output format explicitly
 - Include quality checks
+
+**Prompt Injection Defense:**
+All 8 user-facing prompts include `<inputSecurity>` sections placed after `<description>` and before `<context>`. Defense uses three layers:
+1. **Instruction hierarchy** (`<inputSecurity>` in system prompt) — declares untrusted data boundaries, prevents following embedded directives
+2. **Output format constraints** (in `<inputSecurity>`) — restricts output to expected format (summary, JSON, etc.)
+3. **Sandwich defense** (in user message, routes only) — reminder appended after untrusted content in `/api/summarize`, `/api/research/extract`, `/api/brainstorm/synthesize`
+
+Out-of-scope prompts (planners, proofread) do not have `<inputSecurity>` — their inputs are LLM-generated or low-risk.
 
 ### `types.ts` - TypeScript Types
 

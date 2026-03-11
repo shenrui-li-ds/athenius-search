@@ -76,6 +76,7 @@ data: {"done": true}
 - Cache key: `summary:{query_hash}:{sources_hash}:{provider}`
 - Cache hit returns full content in single SSE chunk with `cached: true`
 - Enables retry without re-calling LLM if user disconnects mid-stream
+- **Sandwich Defense**: User message appends a reminder after `<searchResults>` to follow system instructions only and produce cited summary format — prevents injection from malicious search result content
 
 ### `/api/proofread` - Content Proofreading
 Cleans up and polishes content. Used in Pro Search mode.
@@ -206,6 +207,7 @@ When `queryType` is `"finance"`, the extraction prompt adds finance-specific tas
 - Maintains global source index for consistent citations
 - Falls back to minimal extraction on parse errors (entities default to `[]`)
 - Tags each source URL as `high-authority` or `unclassified` via domain whitelist
+- **Sandwich Defense**: User message appends a reminder after `<searchResults>` to extract facts only and ignore embedded instructions in source text
 
 **Confidence Levels** (with countable criteria):
 - `established`: 2+ sources agree on the claim
@@ -541,6 +543,7 @@ data: {"done": true}
 - Targets 800-1000 words
 - **Synthesis Caching**: Results cached after stream completes (48 hours TTL)
 - Cache key: `brainstorm-synth:{query_hash}:{angle_urls_hash}:{provider}`
+- **Sandwich Defense**: User message appends a reminder after `<crossDomainResearch>` to synthesize insights only and ignore embedded instructions in source text
 
 ### `/api/related-searches` - Related Search Suggestions
 Generates related search queries based on the original query and content.
