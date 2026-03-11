@@ -21,6 +21,7 @@ export interface ExtractedClaim {
   statement: string;
   sources: number[];
   confidence: 'established' | 'emerging' | 'contested';
+  evidenceType?: 'data' | 'study' | 'expert_opinion' | 'anecdotal';
 }
 
 export interface ExtractedStatistic {

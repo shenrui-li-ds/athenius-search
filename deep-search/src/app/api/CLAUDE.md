@@ -175,7 +175,7 @@ When `queryType` is `"finance"`, the extraction prompt adds finance-specific tas
   "extraction": {
     "aspect": "fundamentals",
     "claims": [
-      { "statement": "...", "sources": [1, 2], "confidence": "established" }
+      { "statement": "...", "sources": [1, 2], "confidence": "established", "evidenceType": "data" }
     ],
     "statistics": [
       { "metric": "...", "value": "...", "source": 1, "year": "2024" }
@@ -207,10 +207,16 @@ When `queryType` is `"finance"`, the extraction prompt adds finance-specific tas
 - Falls back to minimal extraction on parse errors (entities default to `[]`)
 - Tags each source URL as `high-authority` or `unclassified` via domain whitelist
 
-**Confidence Levels:**
-- `established`: Multiple sources agree, well-documented
-- `emerging`: Recent research, fewer sources
-- `contested`: Sources disagree
+**Confidence Levels** (with countable criteria):
+- `established`: 2+ sources agree on the claim
+- `emerging`: Only 1 source, or only very recent sources
+- `contested`: Sources directly disagree or present opposing positions
+
+**Evidence Types** (added to each claim):
+- `data`: Specific numbers, statistics, dates, measurements
+- `study`: Named study, paper, survey, or formal research
+- `expert_opinion`: Attributed to a named person/organization
+- `anecdotal`: General assertion, user experience, or recommendation without hard data
 
 ### `/api/research/synthesize` - Research Synthesis
 Synthesizes extracted knowledge or raw search results into a comprehensive research document.
@@ -335,6 +341,7 @@ Analyzes extracted research data to identify knowledge gaps for Round 2 searches
 | `needs_recency` | Information may be outdated |
 | `missing_comparison` | Lacks alternatives comparison |
 | `missing_expert` | No expert opinions cited |
+| `contradicted_claim` | Sources directly conflict — targeted search for authoritative resolution |
 
 **Features:**
 - Returns 0-3 gaps maximum (prioritizes high-importance)
