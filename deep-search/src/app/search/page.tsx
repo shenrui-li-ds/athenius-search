@@ -19,6 +19,7 @@ interface SearchPageProps {
     deep?: string;
     files?: string;
     thread?: string;
+    historyId?: string;
   }>;
 }
 
@@ -59,6 +60,9 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   // Thread ID for threaded conversational search
   const threadId = params.thread || undefined;
 
+  // History ID for loading cached content from Library
+  const historyId = params.historyId || undefined;
+
   // Allow either a query or a thread ID (thread resumption has no query)
   if (!query && !threadId) {
     notFound();
@@ -75,6 +79,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             deep={deep}
             fileIds={fileIds}
             threadId={threadId}
+            historyId={historyId}
           />
         </Suspense>
       </ErrorBoundary>
