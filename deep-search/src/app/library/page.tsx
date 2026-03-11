@@ -112,7 +112,8 @@ function HistoryItem({ entry, onDelete, onToggleBookmark, isPendingDelete }: His
   const locale = useLocale();
 
   // Build search URL, including deep parameter if it was a deep research
-  const searchUrl = `/search?q=${encodeURIComponent(entry.query)}&provider=${entry.provider}&mode=${entry.mode}${entry.deep ? '&deep=true' : ''}`;
+  // Include historyId so search page can load cached content instead of re-running pipeline
+  const searchUrl = `/search?q=${encodeURIComponent(entry.query)}&provider=${entry.provider}&mode=${entry.mode}${entry.deep ? '&deep=true' : ''}${entry.id ? `&historyId=${entry.id}` : ''}`;
 
   const handleMenuDelete = () => {
     if (entry.id) {
@@ -627,7 +628,7 @@ function ThreadCard({ thread, onToggleBookmark, onDelete }: ThreadCardProps) {
 }
 
 export default function LibraryPage() {
-  const [activeTab, setActiveTab] = useState<LibraryTab>('history');
+  const [activeTab, setActiveTab] = useState<LibraryTab>('threads');
   const [searchTerm, setSearchTerm] = useState('');
   const [history, setHistory] = useState<SearchHistoryEntry[] | undefined>(undefined);
   const [favorites, setFavorites] = useState<SearchHistoryEntry[] | undefined>(undefined);
@@ -897,6 +898,24 @@ export default function LibraryPage() {
         {/* Tabs */}
         <div className="flex items-center gap-6 mb-6 border-b border-[var(--border)]">
           <button
+            onClick={() => setActiveTab('threads')}
+            className={`pb-3 text-sm font-medium transition-colors relative border-b-2 ${
+              activeTab === 'threads'
+                ? 'border-[var(--accent)] text-[var(--accent)]'
+                : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+            }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+              {t('threads')}
+              {threadsCount > 0 && (
+                <span className="text-xs text-[var(--text-muted)]">({threadsCount})</span>
+              )}
+            </span>
+          </button>
+          <button
             onClick={() => setActiveTab('history')}
             className={`pb-3 text-sm font-medium transition-colors relative border-b-2 ${
               activeTab === 'history'
@@ -950,24 +969,6 @@ export default function LibraryPage() {
               )}
             </span>
           </button>
-          <button
-            onClick={() => setActiveTab('threads')}
-            className={`pb-3 text-sm font-medium transition-colors relative border-b-2 ${
-              activeTab === 'threads'
-                ? 'border-[var(--accent)] text-[var(--accent)]'
-                : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-            }`}
-          >
-            <span className="flex items-center gap-1.5">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-              {t('threads')}
-              {threadsCount > 0 && (
-                <span className="text-xs text-[var(--text-muted)]">({threadsCount})</span>
-              )}
-            </span>
-          </button>
         </div>
 
         {/* Search input */}
@@ -1003,6 +1004,50 @@ export default function LibraryPage() {
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent)]"></div>
           </div>
+        ) : activeTab === 'threads' ? (
+          // Threads Tab Content
+          threads && threads.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[var(--card)] flex items-center justify-center">
+                <svg className="h-8 w-8 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">
+                {t('emptyThreads')}
+              </h3>
+              <p className="text-[var(--text-muted)] mb-6">
+                {t('emptyThreadsDescription')}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {/* Bookmarked Threads */}
+              {(threads?.filter(th => th.bookmarked).length ?? 0) > 0 && (
+                <>
+                  <p className="text-xs text-[var(--text-muted)] mb-2 px-4">{t('bookmarks')}</p>
+                  {threads?.filter(th => th.bookmarked).map(thread => (
+                    <ThreadCard
+                      key={thread.id}
+                      thread={thread}
+                      onToggleBookmark={handleToggleThreadBookmark}
+                      onDelete={handleDeleteThread}
+                    />
+                  ))}
+                  <div className="border-b border-[var(--border)] my-3" />
+                </>
+              )}
+              {/* Non-bookmarked Threads */}
+              {threads?.filter(th => !th.bookmarked).map(thread => (
+                <ThreadCard
+                  key={thread.id}
+                  thread={thread}
+                  onToggleBookmark={handleToggleThreadBookmark}
+                  onDelete={handleDeleteThread}
+                />
+              ))}
+            </div>
+          )
         ) : activeTab === 'history' ? (
           // History Tab Content
           history && history.length === 0 ? (
@@ -1111,50 +1156,6 @@ export default function LibraryPage() {
               </div>
             )}
           </>
-        ) : activeTab === 'threads' ? (
-          // Threads Tab Content
-          threads && threads.length === 0 ? (
-            <div className="text-center py-16">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[var(--card)] flex items-center justify-center">
-                <svg className="h-8 w-8 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">
-                {t('emptyThreads')}
-              </h3>
-              <p className="text-[var(--text-muted)] mb-6">
-                {t('emptyThreadsDescription')}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {/* Bookmarked Threads */}
-              {(threads?.filter(th => th.bookmarked).length ?? 0) > 0 && (
-                <>
-                  <p className="text-xs text-[var(--text-muted)] mb-2 px-4">{t('bookmarks')}</p>
-                  {threads?.filter(th => th.bookmarked).map(thread => (
-                    <ThreadCard
-                      key={thread.id}
-                      thread={thread}
-                      onToggleBookmark={handleToggleThreadBookmark}
-                      onDelete={handleDeleteThread}
-                    />
-                  ))}
-                  <div className="border-b border-[var(--border)] my-3" />
-                </>
-              )}
-              {/* Non-bookmarked Threads */}
-              {threads?.filter(th => !th.bookmarked).map(thread => (
-                <ThreadCard
-                  key={thread.id}
-                  thread={thread}
-                  onToggleBookmark={handleToggleThreadBookmark}
-                  onDelete={handleDeleteThread}
-                />
-              ))}
-            </div>
-          )
         ) : null}
       </div>
 
