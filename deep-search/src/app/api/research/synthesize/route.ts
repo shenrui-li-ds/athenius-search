@@ -229,7 +229,7 @@ Use the source index numbers [1], [2], etc. as shown in the results for your cit
     const typedCompetitiveCluster = competitiveCluster as CompetitiveCluster | undefined;
     const synthesizerPrompt = deep
       ? deepResearchSynthesizerPrompt(query, currentDate, detectedLanguage, gapDescriptions, queryType, typedCompetitiveCluster, priorContext, userExpertise)
-      : researchSynthesizerPrompt(query, currentDate, detectedLanguage, priorContext, userExpertise);
+      : researchSynthesizerPrompt(query, currentDate, detectedLanguage, priorContext, userExpertise, queryType);
 
     const targetLength = deep ? '1000-1200 words' : '800-1000 words';
 

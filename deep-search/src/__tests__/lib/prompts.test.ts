@@ -936,4 +936,40 @@ describe('Prompts', () => {
       });
     });
   });
+
+  describe('financialDisclaimer', () => {
+    it('includes disclaimer in researchSynthesizerPrompt when queryType is finance', () => {
+      const prompt = researchSynthesizerPrompt('NVIDIA stock', 'March 12, 2026', 'English', undefined, undefined, 'finance');
+      expect(prompt).toContain('<financialDisclaimer>');
+      expect(prompt).toContain('does not constitute investment advice');
+      expect(prompt).toContain('NON-OPTIONAL');
+    });
+
+    it('excludes disclaimer in researchSynthesizerPrompt when queryType is not finance', () => {
+      const prompt = researchSynthesizerPrompt('quantum computing', 'March 12, 2026', 'English', undefined, undefined, 'technical');
+      expect(prompt).not.toContain('<financialDisclaimer>');
+    });
+
+    it('excludes disclaimer in researchSynthesizerPrompt when queryType is undefined', () => {
+      const prompt = researchSynthesizerPrompt('test', 'March 12, 2026');
+      expect(prompt).not.toContain('<financialDisclaimer>');
+    });
+
+    it('includes disclaimer in deepResearchSynthesizerPrompt when queryType is finance', () => {
+      const prompt = deepResearchSynthesizerPrompt('NVIDIA stock', 'March 12, 2026', 'English', [], 'finance');
+      expect(prompt).toContain('<financialDisclaimer>');
+      expect(prompt).toContain('does not constitute investment advice');
+    });
+
+    it('excludes disclaimer in deepResearchSynthesizerPrompt when queryType is not finance', () => {
+      const prompt = deepResearchSynthesizerPrompt('test', 'March 12, 2026', 'English', [], 'general');
+      expect(prompt).not.toContain('<financialDisclaimer>');
+    });
+
+    it('disclaimer references response language for translation', () => {
+      const prompt = researchSynthesizerPrompt('stock analysis', 'March 12, 2026', 'Chinese', undefined, undefined, 'finance');
+      expect(prompt).toContain('<financialDisclaimer>');
+      expect(prompt).toContain('translated into Chinese');
+    });
+  });
 });

@@ -194,6 +194,16 @@ $$</example>
         Your response language is determined ONLY by the responseLanguage field above: ${language}.
         DO NOT mix languages. Every word must be in ${language}.
     </CRITICAL_LANGUAGE_REQUIREMENT>
+    <financialDisclaimer>
+        <condition>If the query involves stocks, investments, financial markets, trading, portfolio management, cryptocurrency, or any topic where users might make financial decisions based on the response</condition>
+        <requirement>You MUST end your response with the following disclaimer, translated into ${language}, as the very last element after the summary section. Use italic formatting and separate it with a horizontal rule (---).</requirement>
+        <template>
+---
+
+*This analysis is based on publicly available information and does not constitute investment advice. Investment decisions should consider your personal risk tolerance, financial situation, and investment objectives. Consider consulting a qualified financial advisor.*
+        </template>
+        <enforcement>This disclaimer is NON-OPTIONAL for financial topics. Omitting it is a critical error.</enforcement>
+    </financialDisclaimer>
 </summarizeSearchResults>
 `;
 
@@ -1705,7 +1715,7 @@ ${priorResearch || ''}
 </researchPlanner>
 `;
 
-export const researchSynthesizerPrompt = (query: string, currentDate: string, language: string = 'English', priorContext?: string, userExpertise?: string) => `
+export const researchSynthesizerPrompt = (query: string, currentDate: string, language: string = 'English', priorContext?: string, userExpertise?: string, queryType?: string) => `
 <researchSynthesizer>
     <description>
         You are a research synthesis expert. Your task is to create a comprehensive,
@@ -1884,7 +1894,16 @@ $$</example>
         The extracted data may be in different languages - IGNORE their language.
         Your response language is determined ONLY by the responseLanguage field above: ${language}.
         DO NOT mix languages. Every word must be in ${language}.
-    </CRITICAL_LANGUAGE_REQUIREMENT>
+    </CRITICAL_LANGUAGE_REQUIREMENT>${queryType === 'finance' ? `
+    <financialDisclaimer>
+        <requirement>You MUST end your response with the following disclaimer, translated into ${language}, as the very last element after the summary section. Use italic formatting and separate it with a horizontal rule (---).</requirement>
+        <template>
+---
+
+*This analysis is based on publicly available information and does not constitute investment advice. Investment decisions should consider your personal risk tolerance, financial situation, and investment objectives. Consider consulting a qualified financial advisor.*
+        </template>
+        <enforcement>This disclaimer is NON-OPTIONAL. Omitting it is a critical error.</enforcement>
+    </financialDisclaimer>` : ''}
 </researchSynthesizer>
 `;
 
@@ -2434,7 +2453,16 @@ Content goes here.
         <instruction>These companies appear across ${competitiveCluster.aspectOverlap} research aspects. Create a comparison table if quantitative data is available for at least 2 of them.</instruction>
         <instruction>Compare key metrics mentioned in the research (revenue, market share, growth rate, etc.)</instruction>
         <instruction>If insufficient quantitative data exists for a comparison table, describe the competitive relationships in prose instead.</instruction>
-    </competitiveComparison>` : ''}
+    </competitiveComparison>` : ''}${queryType === 'finance' ? `
+    <financialDisclaimer>
+        <requirement>You MUST end your response with the following disclaimer, translated into ${language}, as the very last element after the summary section. Use italic formatting and separate it with a horizontal rule (---).</requirement>
+        <template>
+---
+
+*This analysis is based on publicly available information and does not constitute investment advice. Investment decisions should consider your personal risk tolerance, financial situation, and investment objectives. Consider consulting a qualified financial advisor.*
+        </template>
+        <enforcement>This disclaimer is NON-OPTIONAL. Omitting it is a critical error.</enforcement>
+    </financialDisclaimer>` : ''}
 </deepResearchSynthesizer>
 `;
 
