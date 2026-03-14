@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { SearchResult, Source, SearchImage } from '@/lib/types';
 import SearchResultComponent from '@/components/SearchResult';
@@ -28,6 +28,15 @@ import { cleanupFinalContent } from '@/lib/text-cleanup';
 import type { MemoryRetrievalResult } from '@/lib/research-memory';
 import { formatPriorResearchXML, formatPriorContextXML, formatUserExpertiseXML } from '@/lib/research-memory';
 import { addSearchToHistory, toggleBookmark, saveHistoryContent, getHistoryContent } from '@/lib/supabase/database';
+// Map browser locale to response language (inline to avoid importing large api-utils client-side)
+function browserLocaleToLanguage(locale: string): string | undefined {
+  const code = locale.split('-')[0].toLowerCase();
+  const map: Record<string, string> = {
+    'zh': 'Chinese', 'ja': 'Japanese', 'ko': 'Korean',
+    'es': 'Spanish', 'fr': 'French', 'de': 'German',
+  };
+  return map[code];
+}
 import ThreadView from '@/components/ThreadView';
 import { createThread, getThread, getThreadMessages, addMessage, updateThreadSummary } from '@/lib/supabase/threads';
 // Thread summary generated via API route (server-side LLM access)
@@ -90,6 +99,24 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
   const [isFollowUpInProgress, setIsFollowUpInProgress] = useState<boolean>(false);
   const [streamingQuery, setStreamingQuery] = useState<string>('');
   const router = useRouter();
+
+  // Resolve response language from cookie preference or browser locale
+  const responseLanguage = useMemo(() => {
+    // Check cookie preference first (set from Account > Preferences)
+    if (typeof document !== 'undefined') {
+      const match = document.cookie.match(/(?:^|;\s*)RESPONSE_LANGUAGE=([^;]*)/);
+      const cookieValue = match ? decodeURIComponent(match[1]) : null;
+      if (cookieValue && cookieValue !== 'auto') {
+        return cookieValue;
+      }
+    }
+    // Fall back to browser locale
+    if (typeof navigator !== 'undefined') {
+      const browserLang = browserLocaleToLanguage(navigator.language);
+      if (browserLang) return browserLang;
+    }
+    return undefined; // Let API routes use detectLanguage default
+  }, []);
 
   // Ref to track content for batched updates
   const contentRef = useRef<string>('');
@@ -718,6 +745,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
               globalSourceIndex,
               provider,
               ...(currentQueryType && { queryType: currentQueryType }),
+              ...(responseLanguage && { responseLanguage }),
             }),
             signal: abortController.signal
           }).then(res => res.json()).then(data => data.extraction)
@@ -981,6 +1009,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
                       globalSourceIndex,
                       provider,
                       ...(currentQueryType && { queryType: currentQueryType }),
+                      ...(responseLanguage && { responseLanguage }),
                     }),
                     signal: abortController.signal
                   }).then(res => res.json()).then(data => data.extraction)
@@ -1095,13 +1124,14 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
                 retrievedMemory.expertise.find(e => e.domain === currentQueryType)
               ),
             }),
+            ...(responseLanguage && { responseLanguage }),
           }),
           signal: abortController.signal
         });
 
         const synthesizeResponse = await raceWithTimeout(
           synthesizePromise,
-          30000,
+          deep ? 60000 : 30000, // Deep research has larger payloads, needs more time
           'Research synthesis request timed out',
           () => abortController.abort()
         );
@@ -1114,7 +1144,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
         // Stream synthesis to UI
         let synthesizedContent = '';
-        const { interrupted: synthesisInterrupted } = await streamResponse(
+        const { content: streamContent, interrupted: synthesisInterrupted } = await streamResponse(
           synthesizeResponse,
           (content) => {
             if (!isActive) return;
@@ -1130,8 +1160,15 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             synthesizedContent = fullContent;
             const cleanedContent = cleanupFinalContent(fullContent);
             setStreamingContent(cleanedContent);
-          }
+          },
+          deep ? 60000 : 30000 // Deep research: longer timeout for slow models (e.g., Gemini Pro)
         );
+
+        // Use streamResponse return value as fallback if onComplete didn't set synthesizedContent
+        // (can happen if isActive was false during onComplete but true after)
+        if (!synthesizedContent && streamContent) {
+          synthesizedContent = streamContent;
+        }
 
         if (!isActive) return;
 
@@ -1145,6 +1182,14 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         }
 
         const cleanedContent = cleanupFinalContent(synthesizedContent);
+
+        // Skip proofread if synthesis produced no content
+        if (!cleanedContent.trim()) {
+          console.warn('[Research] Synthesis produced empty content, skipping proofread');
+          finalizeCredits(reservationId, tavilyQueryCount);
+          transitionToContent('', allSources, allImages, mode, provider, false, true);
+          return;
+        }
 
         // Step 4: Quick proofread (regex-only, no LLM) to avoid content shrinkage
         setLoadingStage('proofreading');
@@ -1241,7 +1286,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           fetch('/api/brainstorm/reframe', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query, provider }),
+            body: JSON.stringify({ query, provider, ...(responseLanguage && { responseLanguage }) }),
             signal: abortController.signal
           }),
           fetch('/api/check-limit', {
@@ -1439,7 +1484,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             query,
             angleResults,
             stream: true,
-            provider
+            provider,
+            ...(responseLanguage && { responseLanguage }),
           }),
           signal: abortController.signal
         });
@@ -1726,6 +1772,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             stream: true,
             provider,
             threadContext: threadSummary || undefined,
+            ...(responseLanguage && { responseLanguage }),
           }),
           signal: abortController.signal
         });
@@ -1919,7 +1966,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         clearTimeout(updateTimeoutRef.current);
       }
     };
-  }, [query, provider, mode, deep, fileIds, historyId, scheduleContentUpdate, streamResponse, transitionToContent]);
+  }, [query, provider, mode, deep, fileIds, historyId, scheduleContentUpdate, streamResponse, transitionToContent, responseLanguage]);
 
   // Handle bookmark toggle - must be before any early returns
   const handleToggleBookmark = useCallback(async () => {
@@ -2045,6 +2092,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           stream: true,
           provider,
           threadContext: threadSummary || undefined,
+          ...(responseLanguage && { responseLanguage }),
         }),
       });
 
@@ -2145,7 +2193,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       setIsFollowUpInProgress(false);
       setStreamingQuery('');
     }
-  }, [currentThreadId, threadSummary, threadMessageCount, isFollowUpInProgress, provider, streamResponse, scheduleContentUpdate, finalizeCreditsFn, cancelReservationFn]);
+  }, [currentThreadId, threadSummary, threadMessageCount, isFollowUpInProgress, provider, streamResponse, scheduleContentUpdate, finalizeCreditsFn, cancelReservationFn, responseLanguage]);
 
   if (error) {
     // Get error info from type or fallback to defaults

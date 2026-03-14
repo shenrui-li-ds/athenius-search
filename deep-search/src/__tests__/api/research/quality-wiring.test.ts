@@ -21,6 +21,7 @@ jest.mock('@/lib/api-utils', () => ({
     yield 'Chunk 1';
   }),
   detectLanguage: jest.fn(() => 'English'),
+  resolveResponseLanguage: jest.fn(() => 'English'),
 }));
 
 jest.mock('@/lib/prompts', () => ({

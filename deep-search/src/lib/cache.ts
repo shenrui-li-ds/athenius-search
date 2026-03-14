@@ -10,6 +10,7 @@
 
 import crypto from 'crypto';
 import { createServiceClient } from '@/lib/supabase/server';
+import { normalizeProvider } from '@/lib/api-utils';
 
 // =============================================================================
 // Types
@@ -169,6 +170,9 @@ export function generateCacheKey(
   }
 ): string {
   const normalizedQuery = params.query.toLowerCase().trim();
+  // Normalize ModelId to LLMProvider for consistent cache keys
+  // e.g., 'haiku' → 'claude', 'gemini-pro' → 'gemini'
+  const np = params.provider ? normalizeProvider(params.provider) : 'default';
 
   switch (type) {
     case 'search':
@@ -177,12 +181,12 @@ export function generateCacheKey(
 
     case 'refine':
       // Query refinement: query + provider
-      return `refine:${md5(normalizedQuery)}:${params.provider || 'default'}`;
+      return `refine:${md5(normalizedQuery)}:${np}`;
 
     case 'summary':
       // Summary: query + sources hash + provider
       const sourcesHash = params.sources ? md5(JSON.stringify(params.sources.sort())) : 'nosources';
-      return `summary:${md5(normalizedQuery)}:${sourcesHash}:${params.provider || 'default'}`;
+      return `summary:${md5(normalizedQuery)}:${sourcesHash}:${np}`;
 
     case 'related':
       // Related searches: query + content snippet hash
@@ -191,7 +195,7 @@ export function generateCacheKey(
 
     case 'plan':
       // Research plan: query + provider
-      return `plan:${md5(normalizedQuery)}:${params.provider || 'default'}`;
+      return `plan:${md5(normalizedQuery)}:${np}`;
 
     case 'research-synthesis':
       // Research synthesis: query + aspect results hash (includes all source URLs) + deep mode
@@ -202,7 +206,7 @@ export function generateCacheKey(
           }))))
         : 'noaspects';
       const depthMode = params.deep ? 'deep' : 'standard';
-      return `research-synth:${md5(normalizedQuery)}:${aspectHash}:${params.provider || 'default'}:${depthMode}`;
+      return `research-synth:${md5(normalizedQuery)}:${aspectHash}:${np}:${depthMode}`;
 
     case 'brainstorm-synthesis':
       // Brainstorm synthesis: query + angle results hash (includes all source URLs)
@@ -212,16 +216,16 @@ export function generateCacheKey(
             urls: a.results.map(r => r.url).sort()
           }))))
         : 'noangles';
-      return `brainstorm-synth:${md5(normalizedQuery)}:${angleHash}:${params.provider || 'default'}`;
+      return `brainstorm-synth:${md5(normalizedQuery)}:${angleHash}:${np}`;
 
     case 'round1-extractions':
       // Round 1 extractions: query + provider (for deep research retry optimization)
-      return `round1:${md5(normalizedQuery)}:${params.provider || 'default'}`;
+      return `round1:${md5(normalizedQuery)}:${np}`;
 
     case 'round2-data':
       // Round 2 data: query + R1 extractions hash + provider
       // Uses R1 extractions hash to ensure R2 cache is invalidated when R1 changes
-      return `round2:${md5(normalizedQuery)}:${params.round1ExtractionsHash || 'nohash'}:${params.provider || 'default'}`;
+      return `round2:${md5(normalizedQuery)}:${params.round1ExtractionsHash || 'nohash'}:${np}`;
 
     case 'classification':
       // Classification: query only (provider-independent — classification is a property of the query)
@@ -376,7 +380,8 @@ export async function setToCache<T>(
   const writeClient = serviceClient || supabase;
 
   if (writeClient) {
-    await setToSupabase(cacheKey, type, query, data, provider || null, writeClient);
+    const normalizedProv = provider ? normalizeProvider(provider) : null;
+    await setToSupabase(cacheKey, type, query, data, normalizedProv, writeClient);
   }
 
   console.log(`[Cache] SET: ${cacheKey.slice(0, 50)}...`);

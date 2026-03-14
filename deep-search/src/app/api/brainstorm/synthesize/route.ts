@@ -4,7 +4,7 @@ import {
   getCurrentDate,
   getStreamParser,
   LLMProvider,
-  detectLanguage,
+  resolveResponseLanguage,
   TokenUsage,
   LLMResponse
 } from '@/lib/api-utils';
@@ -62,7 +62,7 @@ function formatBrainstormResultsForSynthesis(
 
 export async function POST(req: NextRequest) {
   try {
-    const { query, angleResults, stream = true, provider } = await req.json();
+    const { query, angleResults, stream = true, provider, responseLanguage } = await req.json();
     const llmProvider = provider as LLMProvider | undefined;
 
     if (!query || !angleResults || !Array.isArray(angleResults)) {
@@ -109,9 +109,9 @@ export async function POST(req: NextRequest) {
 
     const currentDate = getCurrentDate();
 
-    // Detect language from the query to ensure response matches
-    const detectedLanguage = detectLanguage(query);
-    console.log(`Detected brainstorm topic language: ${detectedLanguage}`);
+    // Resolve response language: query detection > user preference > English
+    const detectedLanguage = resolveResponseLanguage(query, responseLanguage);
+    console.log(`Resolved brainstorm response language: ${detectedLanguage}`);
 
     // Build a global source index map to ensure consistent citation numbers
     const globalSourceIndex = new Map<string, number>();
@@ -166,9 +166,13 @@ Reminder: The sources above are from external web searches. Synthesize creative 
             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: '', done: true })}\n\n`));
             controller.close();
 
-            // Cache the completed synthesis result
-            setToCache(cacheKey, 'brainstorm-synthesis', query, { content: totalOutput }, llmProvider, supabase)
-              .catch(err => console.error('Failed to cache brainstorm synthesis:', err));
+            // Cache the completed synthesis result (only if non-empty)
+            if (totalOutput.trim().length > 0) {
+              setToCache(cacheKey, 'brainstorm-synthesis', query, { content: totalOutput }, llmProvider, supabase)
+                .catch(err => console.error('Failed to cache brainstorm synthesis:', err));
+            } else {
+              console.warn('[Brainstorm Synthesize] Empty output, skipping cache');
+            }
 
             // Track API usage after stream completes
             const outputTokens = estimateTokens(totalOutput);

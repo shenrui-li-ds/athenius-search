@@ -6,7 +6,7 @@ import MainLayout from '@/components/MainLayout';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { createClient } from '@/lib/supabase/client';
 import { useTranslations } from 'next-intl';
-import { getUserPreferences, updateUserPreferences, getUserLimits, getUserCredits, getPurchaseHistory, getUsageStats, getApiUsageWithCosts, MAX_CREDITS, type UserPreferences, type UserLimits, type UserCredits, type CreditPurchase, type UsageStats, type ApiUsageWithCosts } from '@/lib/supabase/database';
+import { getUserPreferences, updateUserPreferences, getUserLimits, getUserCredits, getPurchaseHistory, getUsageStats, getApiUsageWithCosts, MAX_CREDITS, type UserPreferences, type UserLimits, type UserCredits, type CreditPurchase, type UsageStats, type ApiUsageWithCosts, type ResponseLanguagePreference } from '@/lib/supabase/database';
 
 // Tab types
 type TabId = 'profile' | 'preferences' | 'billing' | 'usage';
@@ -1368,6 +1368,10 @@ function PreferencesTab() {
       try {
         const prefs = await getUserPreferences();
         setPreferences(prefs);
+        // Sync response language cookie from DB
+        if (prefs?.response_language) {
+          document.cookie = `RESPONSE_LANGUAGE=${encodeURIComponent(prefs.response_language)};path=/;max-age=${365 * 24 * 60 * 60};SameSite=Lax`;
+        }
       } catch (error) {
         console.error('Failed to load preferences:', error);
       } finally {
@@ -1414,6 +1418,23 @@ function PreferencesTab() {
       setTimeout(() => setSaveSuccess(false), 2000);
     } catch (error) {
       console.error('Failed to update mode:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleResponseLanguageChange = async (lang: ResponseLanguagePreference) => {
+    if (!preferences) return;
+    setIsSaving(true);
+    try {
+      await updateUserPreferences({ response_language: lang });
+      setPreferences({ ...preferences, response_language: lang });
+      // Set cookie for fast client-side access (1 year expiry)
+      document.cookie = `RESPONSE_LANGUAGE=${encodeURIComponent(lang)};path=/;max-age=${365 * 24 * 60 * 60};SameSite=Lax`;
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2000);
+    } catch (error) {
+      console.error('Failed to update response language:', error);
     } finally {
       setIsSaving(false);
     }
@@ -1570,6 +1591,44 @@ function PreferencesTab() {
                 <p className="text-xs text-[var(--text-muted)]">{t(mode.descKey)}</p>
               </div>
               {preferences?.default_mode === mode.id && (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Response Language */}
+      <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+        <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-1">{t('responseLanguage')}</h3>
+        <p className="text-xs text-[var(--text-muted)] mb-4">
+          {t('responseLanguageDesc')}
+        </p>
+        <div className="grid gap-2">
+          {([
+            { id: 'auto' as const, label: t('responseLanguageAuto') },
+            { id: 'English' as const, label: 'English' },
+            { id: 'Chinese' as const, label: '中文 (Chinese)' },
+            { id: 'French' as const, label: 'Français (French)' },
+            { id: 'German' as const, label: 'Deutsch (German)' },
+            { id: 'Spanish' as const, label: 'Español (Spanish)' },
+            { id: 'Japanese' as const, label: '日本語 (Japanese)' },
+            { id: 'Korean' as const, label: '한국어 (Korean)' },
+          ] satisfies { id: ResponseLanguagePreference; label: string }[]).map((lang) => (
+            <button
+              key={lang.id}
+              onClick={() => handleResponseLanguageChange(lang.id)}
+              disabled={isSaving}
+              className={`flex items-center justify-between p-3 rounded-lg border transition-all text-left ${
+                (preferences?.response_language || 'auto') === lang.id
+                  ? 'border-[var(--accent)] bg-[var(--accent)]/5'
+                  : 'border-[var(--border)] hover:border-[var(--text-muted)]'
+              } disabled:opacity-50`}
+            >
+              <p className="font-medium text-[var(--text-primary)]">{lang.label}</p>
+              {(preferences?.response_language || 'auto') === lang.id && (
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>

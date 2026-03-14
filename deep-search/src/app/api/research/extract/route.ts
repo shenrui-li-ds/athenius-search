@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLLM, LLMProvider, detectLanguage, LLMResponse } from '@/lib/api-utils';
+import { callLLM, LLMProvider, resolveResponseLanguage, LLMResponse } from '@/lib/api-utils';
 import { aspectExtractorPrompt } from '@/lib/prompts';
 import { OpenAIMessage, ExtractedEntity, SourceAuthority, FinancialMetric, ValuationDataPoint, RiskFactor } from '@/lib/types';
 import { trackServerApiUsage, estimateTokens } from '@/lib/supabase/usage-tracking';
@@ -137,7 +137,7 @@ function parseRiskFactors(raw: unknown): RiskFactor[] {
 
 export async function POST(req: NextRequest) {
   try {
-    const { query, aspectResult, globalSourceIndex, provider, queryType } = await req.json();
+    const { query, aspectResult, globalSourceIndex, provider, queryType, responseLanguage } = await req.json();
     const llmProvider = provider as LLMProvider | undefined;
 
     if (!query || !aspectResult) {
@@ -147,8 +147,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Detect language from the query
-    const detectedLanguage = detectLanguage(query);
+    // Resolve response language: query detection > user preference > English
+    const detectedLanguage = resolveResponseLanguage(query, responseLanguage);
 
     // Reconstruct the global source index map
     const sourceIndexMap = new Map<string, number>(

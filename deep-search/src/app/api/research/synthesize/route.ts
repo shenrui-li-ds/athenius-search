@@ -4,7 +4,7 @@ import {
   getCurrentDate,
   getStreamParser,
   LLMProvider,
-  detectLanguage,
+  resolveResponseLanguage,
   TokenUsage,
   LLMResponse
 } from '@/lib/api-utils';
@@ -130,7 +130,14 @@ function formatExtractionsForSynthesis(extractions: AspectExtraction[]): string 
 
 export async function POST(req: NextRequest) {
   try {
-    const { query, aspectResults, extractedData, stream = true, provider, deep = false, gapDescriptions = [], crossCuttingEntities = [], sourceAuthority, queryType, competitiveCluster, priorContext, userExpertise } = await req.json();
+    let body;
+    try {
+      body = await req.json();
+    } catch (parseError) {
+      console.error('Error in research synthesize API:', parseError);
+      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    }
+    const { query, aspectResults, extractedData, stream = true, provider, deep = false, gapDescriptions = [], crossCuttingEntities = [], sourceAuthority, queryType, competitiveCluster, priorContext, userExpertise, responseLanguage } = body;
     const llmProvider = provider as LLMProvider | undefined;
 
     // Support both old format (aspectResults) and new format (extractedData)
@@ -182,9 +189,9 @@ export async function POST(req: NextRequest) {
 
     const currentDate = getCurrentDate();
 
-    // Detect language from the query to ensure response matches
-    const detectedLanguage = detectLanguage(query);
-    console.log(`Detected research topic language: ${detectedLanguage}`);
+    // Resolve response language: query detection > user preference > English
+    const detectedLanguage = resolveResponseLanguage(query, responseLanguage);
+    console.log(`Resolved research response language: ${detectedLanguage}`);
 
     let formattedData: string;
     let dataDescription: string;
@@ -296,9 +303,13 @@ Target length: ${targetLength} for ${deep ? 'deep' : 'comprehensive'} coverage.
             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: '', done: true })}\n\n`));
             controller.close();
 
-            // Cache the completed synthesis result
-            setToCache(cacheKey, 'research-synthesis', query, { content: totalOutput }, llmProvider, supabase)
-              .catch(err => console.error('Failed to cache research synthesis:', err));
+            // Cache the completed synthesis result (only if non-empty)
+            if (totalOutput.trim().length > 0) {
+              setToCache(cacheKey, 'research-synthesis', query, { content: totalOutput }, llmProvider, supabase)
+                .catch(err => console.error('Failed to cache research synthesis:', err));
+            } else {
+              console.warn('[Research Synthesize] Empty synthesis output, skipping cache');
+            }
 
             // Track API usage after stream completes
             const outputTokens = estimateTokens(totalOutput);

@@ -94,6 +94,17 @@ export function getProviderFromModelId(modelId: ModelId): LLMProvider {
   return MODEL_CONFIG[modelId]?.provider || 'gemini';
 }
 
+// Normalize a ModelId or LLMProvider string to its underlying LLMProvider
+// Used for cache keys, usage tracking, and database storage to ensure consistency
+// e.g., 'haiku' → 'claude', 'gemini-pro' → 'gemini', 'openai' → 'openai'
+export function normalizeProvider(provider: string): string {
+  const config = MODEL_CONFIG[provider as ModelId];
+  if (config) {
+    return config.provider;
+  }
+  return provider; // Already an LLMProvider or unknown string
+}
+
 // Get actual model string from model ID
 export function getModelFromModelId(modelId: ModelId): string {
   return MODEL_CONFIG[modelId]?.model || 'gemini-3-flash-preview';
@@ -724,6 +735,7 @@ export async function* streamGeminiResponse(response: Response): AsyncGenerator<
   const decoder = new TextDecoder('utf-8');
   let buffer = '';
   let finalUsage: TokenUsage | undefined;
+  let totalContentChunks = 0;
 
   try {
     while (true) {
@@ -773,6 +785,7 @@ export async function* streamGeminiResponse(response: Response): AsyncGenerator<
             // Gemini uses candidates[0].content.parts[0].text
             const content = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
             if (content) {
+              totalContentChunks++;
               yield { type: 'content', content };
             }
           } catch {
@@ -785,6 +798,9 @@ export async function* streamGeminiResponse(response: Response): AsyncGenerator<
     if (finalUsage) {
       yield { type: 'usage', usage: finalUsage };
     }
+    if (totalContentChunks === 0) {
+      console.warn(`[Gemini] Stream completed with 0 content chunks. Usage: ${JSON.stringify(finalUsage)}`);
+    }
   } catch (error) {
     console.error('Error reading Gemini stream:', error);
     throw error;
@@ -793,25 +809,44 @@ export async function* streamGeminiResponse(response: Response): AsyncGenerator<
   }
 }
 
+// Resolve a provider-or-model string to { provider, model }
+// Handles both LLMProvider ('deepseek') and ModelId ('minimax', 'haiku', 'gemini-pro')
+function resolveProviderAndModel(input: string): { provider: LLMProvider; model: string } | null {
+  // First, check if it's a known ModelId
+  const config = MODEL_CONFIG[input as ModelId];
+  if (config && isProviderAvailable(config.provider)) {
+    return { provider: config.provider, model: config.model };
+  }
+  // Then, check if it's a direct LLMProvider
+  if (isProviderAvailable(input as LLMProvider)) {
+    return null; // Let callLLMForProvider handle default model selection
+  }
+  return null;
+}
+
 // Unified LLM call - routes to the specified provider or auto-selects based on available API keys
+// Accepts both LLMProvider ('deepseek', 'openai') and ModelId ('minimax', 'gemini-pro', 'haiku')
 export async function callLLM(
   messages: ChatMessage[],
   temperature: number = 0.7,
   stream: boolean = false,
-  provider?: LLMProvider
+  provider?: ModelId | LLMProvider
 ) {
-  // Use specified provider or fall back to auto-detection
-  const selectedProvider = provider || getLLMProvider();
-
-  // Check if the selected provider is available
-  if (provider && !isProviderAvailable(provider)) {
-    console.warn(`Provider ${provider} not available, falling back to auto-detection`);
-    const fallbackProvider = getLLMProvider();
-    console.log(`Using fallback provider: ${fallbackProvider}`);
-    return callLLMForProvider(messages, temperature, stream, fallbackProvider);
+  if (provider) {
+    const resolved = resolveProviderAndModel(provider);
+    if (resolved) {
+      return callLLMForProviderWithModel(messages, temperature, stream, resolved.provider, resolved.model);
+    }
+    // Provider string not resolvable — fall back to auto-detection
+    if (!isProviderAvailable(provider as LLMProvider)) {
+      console.warn(`Provider ${provider} not available, falling back to auto-detection`);
+      const fallbackProvider = getLLMProvider();
+      return callLLMForProvider(messages, temperature, stream, fallbackProvider);
+    }
+    return callLLMForProvider(messages, temperature, stream, provider as LLMProvider);
   }
 
-  return callLLMForProvider(messages, temperature, stream, selectedProvider);
+  return callLLMForProvider(messages, temperature, stream, getLLMProvider());
 }
 
 // Primary providers to try before falling back to Vercel Gateway (excludes vercel-gateway itself)
@@ -833,16 +868,32 @@ export async function callLLMWithFallback(
   messages: ChatMessage[],
   temperature: number = 0.7,
   stream: boolean = false,
-  provider?: LLMProvider
+  provider?: ModelId | LLMProvider
 ): Promise<{ response: Response | LLMResponse; usedProvider: LLMProvider }> {
   const errors: { provider: LLMProvider; error: Error }[] = [];
+
+  // Resolve ModelId to provider+model and try it first
+  if (provider) {
+    const resolved = resolveProviderAndModel(provider);
+    if (resolved) {
+      try {
+        console.log(`[Fallback] Trying resolved provider '${resolved.provider}' with model '${resolved.model}'`);
+        const response = await callLLMForProviderWithModel(messages, temperature, stream, resolved.provider, resolved.model);
+        return { response, usedProvider: resolved.provider };
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        console.warn(`[Fallback] Resolved provider ${resolved.provider} failed:`, err.message);
+        errors.push({ provider: resolved.provider, error: err });
+      }
+    }
+  }
 
   // Build ordered list of providers to try
   const providersToTry: LLMProvider[] = [];
 
-  // If a specific provider was requested, try it first
-  if (provider && provider !== 'vercel-gateway' && isProviderAvailable(provider)) {
-    providersToTry.push(provider);
+  // If a specific provider was requested and is a direct LLMProvider, try it first
+  if (provider && provider !== 'vercel-gateway' && isProviderAvailable(provider as LLMProvider)) {
+    providersToTry.push(provider as LLMProvider);
   }
 
   // Add other available primary providers
@@ -965,11 +1016,15 @@ export function callLLMWithModelId(
 }
 
 // Get the appropriate stream parser for a provider
-export function getStreamParser(provider: LLMProvider) {
-  if (provider === 'claude') {
+export function getStreamParser(provider: string) {
+  // Resolve ModelId to LLMProvider if needed (e.g., 'gemini-pro' → 'gemini')
+  const resolved = resolveProviderAndModel(provider);
+  const effectiveProvider = resolved?.provider || provider;
+
+  if (effectiveProvider === 'claude') {
     return streamClaudeResponse;
   }
-  if (provider === 'gemini') {
+  if (effectiveProvider === 'gemini') {
     return streamGeminiResponse;
   }
   // OpenAI, DeepSeek, Grok, and Vercel Gateway all use OpenAI-compatible streaming
@@ -1421,6 +1476,49 @@ export function detectLanguage(text: string): ResponseLanguage {
   }
 
   // Default to English for Latin-based text without clear markers
+  return 'English';
+}
+
+/**
+ * Map a BCP 47 browser locale code (e.g. 'fr-FR', 'zh-CN') to a ResponseLanguage.
+ * Returns undefined for English or unrecognized locales.
+ */
+export function browserLocaleToResponseLanguage(locale: string): ResponseLanguage | undefined {
+  const code = locale.split('-')[0].toLowerCase();
+  const map: Record<string, ResponseLanguage> = {
+    'zh': 'Chinese',
+    'ja': 'Japanese',
+    'ko': 'Korean',
+    'es': 'Spanish',
+    'fr': 'French',
+    'de': 'German',
+  };
+  return map[code];
+}
+
+/**
+ * Resolve the final response language using priority chain:
+ * 1. Query content detection (if clearly non-English) → wins
+ * 2. Preferred language from user preference/browser locale → wins
+ * 3. Default → English
+ */
+export function resolveResponseLanguage(
+  query: string,
+  preferredLanguage?: string
+): ResponseLanguage {
+  // Strong signal from query content (CJK, accented text)
+  const detected = detectLanguage(query);
+  if (detected !== 'English') {
+    return detected;
+  }
+
+  // User preference or browser locale
+  if (preferredLanguage && preferredLanguage !== 'auto' && preferredLanguage !== 'English') {
+    const validLanguages: ResponseLanguage[] = ['Chinese', 'Japanese', 'Korean', 'Spanish', 'French', 'German'];
+    const found = validLanguages.find(l => l.toLowerCase() === preferredLanguage.toLowerCase());
+    if (found) return found;
+  }
+
   return 'English';
 }
 

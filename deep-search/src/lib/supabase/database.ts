@@ -64,11 +64,14 @@ export type UserModelId =
 
 export type UILanguage = 'en' | 'zh';
 
+export type ResponseLanguagePreference = 'auto' | 'English' | 'Chinese' | 'Japanese' | 'Korean' | 'Spanish' | 'French' | 'German';
+
 export interface UserPreferences {
   user_id: string;
   default_provider: UserModelId;
   default_mode: 'web' | 'pro' | 'brainstorm';
   language: UILanguage;
+  response_language: ResponseLanguagePreference;
   created_at?: string;
   updated_at?: string;
 }
@@ -680,21 +683,23 @@ export async function getUserPreferences(): Promise<UserPreferences | null> {
         default_provider: 'gemini',
         default_mode: 'web',
         language: 'en',
+        response_language: 'auto',
       };
     }
     console.error('Error fetching user preferences:', error);
     throw error;
   }
 
-  // Ensure language has a default
+  // Ensure language and response_language have defaults
   return {
     ...data,
     language: data.language || 'en',
+    response_language: data.response_language || 'auto',
   };
 }
 
 export async function updateUserPreferences(
-  preferences: Partial<Pick<UserPreferences, 'default_provider' | 'default_mode' | 'language'>>
+  preferences: Partial<Pick<UserPreferences, 'default_provider' | 'default_mode' | 'language' | 'response_language'>>
 ): Promise<UserPreferences | null> {
   const supabase = createClient();
 
@@ -706,6 +711,7 @@ export async function updateUserPreferences(
     p_default_provider: preferences.default_provider || null,
     p_default_mode: preferences.default_mode || null,
     p_language: preferences.language || null,
+    p_response_language: preferences.response_language || null,
   });
 
   if (error) {

@@ -974,11 +974,13 @@ CREATE TABLE IF NOT EXISTS user_preferences (
   default_provider TEXT DEFAULT 'deepseek' CHECK (default_provider IN ('deepseek', 'openai', 'grok', 'claude', 'gemini', 'vercel-gateway')),
   default_mode TEXT DEFAULT 'web' CHECK (default_mode IN ('web', 'pro', 'brainstorm')),
   language TEXT DEFAULT 'en' CHECK (language IN ('en', 'zh')),
+  response_language TEXT DEFAULT 'auto',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 COMMENT ON COLUMN user_preferences.language IS 'UI language preference: en (English), zh (Chinese)';
+COMMENT ON COLUMN user_preferences.response_language IS 'Preferred response language for LLM outputs: auto, English, Chinese, Japanese, Korean, Spanish, French, German';
 
 -- RLS for user preferences
 ALTER TABLE user_preferences ENABLE ROW LEVEL SECURITY;
@@ -1532,7 +1534,8 @@ ALTER FUNCTION public.cleanup_expired_otp_codes() SET search_path = public;
 CREATE OR REPLACE FUNCTION public.upsert_user_preferences(
   p_default_provider TEXT DEFAULT NULL,
   p_default_mode TEXT DEFAULT NULL,
-  p_language TEXT DEFAULT NULL
+  p_language TEXT DEFAULT NULL,
+  p_response_language TEXT DEFAULT NULL
 )
 RETURNS user_preferences AS $$
 DECLARE
@@ -1544,18 +1547,20 @@ BEGIN
     RAISE EXCEPTION 'Not authenticated';
   END IF;
 
-  INSERT INTO user_preferences (user_id, default_provider, default_mode, language, updated_at)
+  INSERT INTO user_preferences (user_id, default_provider, default_mode, language, response_language, updated_at)
   VALUES (
     v_user_id,
     COALESCE(p_default_provider, 'deepseek'),
     COALESCE(p_default_mode, 'web'),
     COALESCE(p_language, 'en'),
+    COALESCE(p_response_language, 'auto'),
     NOW()
   )
   ON CONFLICT (user_id) DO UPDATE SET
     default_provider = COALESCE(p_default_provider, user_preferences.default_provider),
     default_mode = COALESCE(p_default_mode, user_preferences.default_mode),
     language = COALESCE(p_language, user_preferences.language),
+    response_language = COALESCE(p_response_language, user_preferences.response_language),
     updated_at = NOW()
   RETURNING * INTO v_result;
 
@@ -1564,7 +1569,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Grant execute permission
-GRANT EXECUTE ON FUNCTION public.upsert_user_preferences(TEXT, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.upsert_user_preferences(TEXT, TEXT, TEXT, TEXT) TO authenticated;
 
 -- ============================================
 -- UPSERT SEARCH HISTORY FUNCTION

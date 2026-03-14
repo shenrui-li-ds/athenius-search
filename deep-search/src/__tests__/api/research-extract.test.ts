@@ -10,6 +10,7 @@ const mockCallLLM = jest.fn();
 jest.mock('@/lib/api-utils', () => ({
   callLLM: (...args: unknown[]) => mockCallLLM(...args),
   detectLanguage: jest.fn(() => 'English'),
+  resolveResponseLanguage: jest.fn(() => 'English'),
 }));
 
 // Mock the usage-tracking module

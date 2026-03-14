@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLLM, getCurrentDate, LLMProvider, detectLanguage, LLMResponse } from '@/lib/api-utils';
+import { callLLM, getCurrentDate, LLMProvider, resolveResponseLanguage, LLMResponse } from '@/lib/api-utils';
 import { brainstormReframePrompt } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
 import { trackServerApiUsage, estimateTokens } from '@/lib/supabase/usage-tracking';
@@ -16,7 +16,7 @@ export interface BrainstormReframeResponse {
 
 export async function POST(req: NextRequest) {
   try {
-    const { query, provider } = await req.json();
+    const { query, provider, responseLanguage } = await req.json();
     const llmProvider = provider as LLMProvider | undefined;
 
     if (!query) {
@@ -27,8 +27,8 @@ export async function POST(req: NextRequest) {
     }
 
     const currentDate = getCurrentDate();
-    const detectedLanguage = detectLanguage(query);
-    console.log(`Detected brainstorm query language: ${detectedLanguage}`);
+    const detectedLanguage = resolveResponseLanguage(query, responseLanguage);
+    console.log(`Resolved brainstorm response language: ${detectedLanguage}`);
     const prompt = brainstormReframePrompt(query, currentDate);
 
     const messages: OpenAIMessage[] = [

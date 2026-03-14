@@ -1,5 +1,6 @@
 import { createClient } from './server';
 import type { TokenUsage } from '../api-utils';
+import { normalizeProvider } from '../api-utils';
 
 // Server-side usage tracking utilities
 
@@ -40,9 +41,11 @@ export async function trackServerApiUsage(record: UsageRecord): Promise<void> {
     }
 
     // Insert usage record with token breakdown if available
+    // Normalize ModelId to LLMProvider for consistent analytics
+    // e.g., 'haiku' → 'claude', 'gemini-pro' → 'gemini'
     const insertData: Record<string, unknown> = {
       user_id: user.id,
-      provider: record.provider,
+      provider: normalizeProvider(record.provider),
       tokens_used: tokensToTrack,
       request_type: record.request_type,
     };

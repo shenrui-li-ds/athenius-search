@@ -28,6 +28,7 @@ jest.mock('@/lib/api-utils', () => ({
   ),
   getStreamParser: jest.fn(),
   detectLanguage: jest.fn(() => 'English'),
+  resolveResponseLanguage: jest.fn(() => 'English'),
   LLMProvider: {},
 }));
 
