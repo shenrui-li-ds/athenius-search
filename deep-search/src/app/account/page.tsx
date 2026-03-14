@@ -1361,6 +1361,8 @@ function PreferencesTab() {
   const [memoryLoading, setMemoryLoading] = useState(true);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const dropdownRefs = React.useRef<Record<string, HTMLDivElement | null>>({});
   const t = useTranslations('account');
 
   useEffect(() => {
@@ -1392,6 +1394,17 @@ function PreferencesTab() {
     loadPreferences();
     loadMemoryPref();
   }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (openDropdown && dropdownRefs.current[openDropdown] && !dropdownRefs.current[openDropdown]!.contains(e.target as Node)) {
+        setOpenDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [openDropdown]);
 
   const handleModelChange = async (modelId: ModelId) => {
     if (!preferences) return;
@@ -1489,11 +1502,27 @@ function PreferencesTab() {
     );
   }
 
+  // Find selected model info
+  const selectedModel = modelProviderGroups.flatMap(g => g.models.map(m => ({ ...m, provider: g.provider, experimental: g.experimental }))).find(m => m.id === preferences?.default_provider);
+  const selectedMode = modes.find(m => m.id === preferences?.default_mode);
+
+  const languages = [
+    { id: 'auto' as const, label: t('responseLanguageAuto'), caption: t('responseLanguageDesc') },
+    { id: 'English' as const, label: 'English' },
+    { id: 'Chinese' as const, label: '中文 (Chinese)' },
+    { id: 'French' as const, label: 'Français (French)' },
+    { id: 'German' as const, label: 'Deutsch (German)' },
+    { id: 'Spanish' as const, label: 'Español (Spanish)' },
+    { id: 'Japanese' as const, label: '日本語 (Japanese)' },
+    { id: 'Korean' as const, label: '한국어 (Korean)' },
+  ] satisfies { id: ResponseLanguagePreference; label: string; caption?: string }[];
+  const selectedLang = languages.find(l => l.id === (preferences?.response_language || 'auto'));
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-1">
       {/* Save indicator */}
       {(isSaving || saveSuccess) && (
-        <div className={`fixed top-4 right-4 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+        <div className={`fixed top-4 right-4 px-4 py-2 rounded-lg text-sm font-medium transition-all z-50 ${
           saveSuccess
             ? 'bg-green-500/20 text-green-500 border border-green-500/20'
             : 'bg-[var(--card)] text-[var(--text-muted)] border border-[var(--border)]'
@@ -1502,182 +1531,216 @@ function PreferencesTab() {
         </div>
       )}
 
-      {/* Default Model */}
-      <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
-        <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-1">{t('defaultModel')}</h3>
-        <p className="text-xs text-[var(--text-muted)] mb-4">
-          {t('defaultModelDesc')}
-        </p>
-        <div className="space-y-4">
-          {modelProviderGroups.map((group) => (
-            <div key={group.provider}>
-              {/* Provider header */}
-              <div className={`text-xs font-medium uppercase tracking-wider mb-2 ${group.experimental ? 'text-[var(--text-muted)]/60' : 'text-[var(--text-muted)]'}`}>
-                {group.provider}
+      <div className="rounded-lg bg-[var(--card)] border border-[var(--border)] divide-y divide-[var(--border)]">
+        {/* Default Model — rich dropdown */}
+        <div className="relative" ref={el => { dropdownRefs.current['model'] = el; }}>
+          <button
+            onClick={() => setOpenDropdown(openDropdown === 'model' ? null : 'model')}
+            disabled={isSaving}
+            className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-[var(--card-hover)] transition-colors disabled:opacity-50"
+          >
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-[var(--text-muted)] mb-0.5">{t('defaultModel')}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-[var(--text-primary)]">{selectedModel?.label || 'Gemini 3 Flash'}</p>
+                {selectedModel?.description && (
+                  <span className="text-xs text-[var(--text-muted)]">{selectedModel.description}</span>
+                )}
+                {selectedModel?.tag && (
+                  <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${
+                    selectedModel.tag === 'Recommended'
+                      ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
+                      : 'bg-[var(--text-muted)]/15 text-[var(--text-muted)]'
+                  }`}>
+                    {selectedModel.tag === 'Recommended' ? t('recommended') : t('reference')}
+                  </span>
+                )}
               </div>
-              {/* Models in this provider group */}
-              <div className="grid gap-2">
-                {group.models.map((model) => {
-                  const isSelected = preferences?.default_provider === model.id;
-                  const borderColor = group.experimental
-                    ? (isSelected ? 'border-[var(--text-muted)]/50' : 'border-[var(--border)] hover:border-[var(--text-muted)]/30')
-                    : (isSelected ? 'border-[var(--accent)]' : 'border-[var(--border)] hover:border-[var(--text-muted)]');
-                  const bgColor = group.experimental
-                    ? (isSelected ? 'bg-[var(--text-muted)]/5' : '')
-                    : (isSelected ? 'bg-[var(--accent)]/5' : '');
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-[var(--text-muted)] flex-shrink-0 ml-3 transition-transform ${openDropdown === 'model' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
 
-                  return (
-                    <button
-                      key={model.id}
-                      onClick={() => handleModelChange(model.id)}
-                      disabled={isSaving}
-                      className={`flex items-center justify-between p-3 rounded-lg border transition-all text-left ${borderColor} ${bgColor} disabled:opacity-50`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div>
-                          <p className={`font-medium ${group.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--text-primary)]'}`}>
-                            {model.label}
-                          </p>
+          {openDropdown === 'model' && (
+            <div className="absolute left-0 right-0 top-full z-40 mt-1 mx-2 rounded-lg border border-[var(--border)] bg-[var(--card)] shadow-lg max-h-80 overflow-y-auto">
+              {modelProviderGroups.map((group, gi) => (
+                <div key={group.provider}>
+                  {gi > 0 && <div className="border-t border-[var(--border)]" />}
+                  <div className={`px-3 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-widest ${group.experimental ? 'text-[var(--text-muted)]/50' : 'text-[var(--text-muted)]'}`}>
+                    {group.provider}
+                  </div>
+                  {group.models.map((model) => {
+                    const isSelected = preferences?.default_provider === model.id;
+                    return (
+                      <button
+                        key={model.id}
+                        onClick={() => { handleModelChange(model.id); setOpenDropdown(null); }}
+                        className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${
+                          isSelected ? 'bg-[var(--accent)]/8' : 'hover:bg-[var(--card-hover)]'
+                        }`}
+                      >
+                        <div className="w-4 flex-shrink-0">
+                          {isSelected && (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className={`text-sm ${group.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--text-primary)]'}`}>{model.label}</span>
                           {model.description && (
-                            <p className={`text-xs ${group.experimental ? 'text-[var(--text-muted)]/60' : 'text-[var(--text-muted)]'}`}>
-                              {model.description}
-                            </p>
+                            <span className={`ml-2 text-xs ${group.experimental ? 'text-[var(--text-muted)]/50' : 'text-[var(--text-muted)]'}`}>{model.description}</span>
                           )}
                         </div>
                         {model.tag && (
-                          <span className={`ml-2 px-1.5 py-0.5 text-[10px] font-medium rounded ${
+                          <span className={`flex-shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded ${
                             model.tag === 'Recommended'
-                              ? 'bg-[var(--accent)]/20 text-[var(--accent)]'
-                              : 'bg-[var(--text-muted)]/20 text-[var(--text-muted)]'
+                              ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
+                              : 'bg-[var(--text-muted)]/15 text-[var(--text-muted)]'
                           }`}>
                             {model.tag === 'Recommended' ? t('recommended') : t('reference')}
                           </span>
                         )}
-                      </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Default Search Mode — rich dropdown */}
+        <div className="relative" ref={el => { dropdownRefs.current['mode'] = el; }}>
+          <button
+            onClick={() => setOpenDropdown(openDropdown === 'mode' ? null : 'mode')}
+            disabled={isSaving}
+            className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-[var(--card-hover)] transition-colors disabled:opacity-50"
+          >
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-[var(--text-muted)] mb-0.5">{t('defaultSearchMode')}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-[var(--text-primary)]">{selectedMode ? t(selectedMode.nameKey) : ''}</p>
+                {selectedMode && <span className="text-xs text-[var(--text-muted)]">{t(selectedMode.descKey)}</span>}
+              </div>
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-[var(--text-muted)] flex-shrink-0 ml-3 transition-transform ${openDropdown === 'mode' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {openDropdown === 'mode' && (
+            <div className="absolute left-0 right-0 top-full z-40 mt-1 mx-2 rounded-lg border border-[var(--border)] bg-[var(--card)] shadow-lg overflow-hidden">
+              {modes.map((mode) => {
+                const isSelected = preferences?.default_mode === mode.id;
+                return (
+                  <button
+                    key={mode.id}
+                    onClick={() => { handleModeChange(mode.id); setOpenDropdown(null); }}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${
+                      isSelected ? 'bg-[var(--accent)]/8' : 'hover:bg-[var(--card-hover)]'
+                    }`}
+                  >
+                    <div className="w-4 flex-shrink-0">
                       {isSelected && (
-                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 flex-shrink-0 ${group.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--accent)]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
                       )}
-                    </button>
-                  );
-                })}
-              </div>
+                    </div>
+                    <div>
+                      <p className="text-sm text-[var(--text-primary)]">{t(mode.nameKey)}</p>
+                      <p className="text-xs text-[var(--text-muted)]">{t(mode.descKey)}</p>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
-          ))}
+          )}
         </div>
-      </div>
 
-      {/* Default Search Mode */}
-      <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
-        <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-1">{t('defaultSearchMode')}</h3>
-        <p className="text-xs text-[var(--text-muted)] mb-4">
-          {t('defaultModeDesc')}
-        </p>
-        <div className="grid gap-2">
-          {modes.map((mode) => (
-            <button
-              key={mode.id}
-              onClick={() => handleModeChange(mode.id)}
-              disabled={isSaving}
-              className={`flex items-center justify-between p-3 rounded-lg border transition-all text-left ${
-                preferences?.default_mode === mode.id
-                  ? 'border-[var(--accent)] bg-[var(--accent)]/5'
-                  : 'border-[var(--border)] hover:border-[var(--text-muted)]'
-              } disabled:opacity-50`}
-            >
-              <div>
-                <p className="font-medium text-[var(--text-primary)]">{t(mode.nameKey)}</p>
-                <p className="text-xs text-[var(--text-muted)]">{t(mode.descKey)}</p>
-              </div>
-              {preferences?.default_mode === mode.id && (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              )}
-            </button>
-          ))}
+        {/* Response Language — rich dropdown */}
+        <div className="relative" ref={el => { dropdownRefs.current['lang'] = el; }}>
+          <button
+            onClick={() => setOpenDropdown(openDropdown === 'lang' ? null : 'lang')}
+            disabled={isSaving}
+            className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-[var(--card-hover)] transition-colors disabled:opacity-50"
+          >
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-[var(--text-muted)] mb-0.5">{t('responseLanguage')}</p>
+              <p className="text-sm text-[var(--text-primary)]">{selectedLang?.label || t('responseLanguageAuto')}</p>
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-[var(--text-muted)] flex-shrink-0 ml-3 transition-transform ${openDropdown === 'lang' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {openDropdown === 'lang' && (
+            <div className="absolute left-0 right-0 top-full z-40 mt-1 mx-2 rounded-lg border border-[var(--border)] bg-[var(--card)] shadow-lg overflow-hidden">
+              {languages.map((lang) => {
+                const isSelected = (preferences?.response_language || 'auto') === lang.id;
+                return (
+                  <button
+                    key={lang.id}
+                    onClick={() => { handleResponseLanguageChange(lang.id); setOpenDropdown(null); }}
+                    className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${
+                      isSelected ? 'bg-[var(--accent)]/8' : 'hover:bg-[var(--card-hover)]'
+                    }`}
+                  >
+                    <div className="w-4 flex-shrink-0">
+                      {isSelected && (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                    <span className="text-sm text-[var(--text-primary)]">{lang.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
-      </div>
 
-      {/* Response Language */}
-      <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
-        <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-1">{t('responseLanguage')}</h3>
-        <p className="text-xs text-[var(--text-muted)] mb-4">
-          {t('responseLanguageDesc')}
-        </p>
-        <div className="grid gap-2">
-          {([
-            { id: 'auto' as const, label: t('responseLanguageAuto') },
-            { id: 'English' as const, label: 'English' },
-            { id: 'Chinese' as const, label: '中文 (Chinese)' },
-            { id: 'French' as const, label: 'Français (French)' },
-            { id: 'German' as const, label: 'Deutsch (German)' },
-            { id: 'Spanish' as const, label: 'Español (Spanish)' },
-            { id: 'Japanese' as const, label: '日本語 (Japanese)' },
-            { id: 'Korean' as const, label: '한국어 (Korean)' },
-          ] satisfies { id: ResponseLanguagePreference; label: string }[]).map((lang) => (
-            <button
-              key={lang.id}
-              onClick={() => handleResponseLanguageChange(lang.id)}
-              disabled={isSaving}
-              className={`flex items-center justify-between p-3 rounded-lg border transition-all text-left ${
-                (preferences?.response_language || 'auto') === lang.id
-                  ? 'border-[var(--accent)] bg-[var(--accent)]/5'
-                  : 'border-[var(--border)] hover:border-[var(--text-muted)]'
-              } disabled:opacity-50`}
-            >
-              <p className="font-medium text-[var(--text-primary)]">{lang.label}</p>
-              {(preferences?.response_language || 'auto') === lang.id && (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Research Memory */}
-      <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
-        <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-1">Research Memory</h3>
-        <p className="text-xs text-[var(--text-muted)] mb-4">
-          Store compressed summaries of your research to improve future searches on similar topics.
-        </p>
-        <div className="space-y-4">
+        {/* Research Memory — inline toggle */}
+        <div className="px-5 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-[var(--text-primary)]">Enable Research Memory</p>
-              <p className="text-xs text-[var(--text-muted)]">When enabled, research results are stored and used to enhance future searches.</p>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-[var(--text-muted)] mb-0.5">Research Memory</p>
+              <p className="text-sm text-[var(--text-primary)]">
+                {memoryLoading ? '...' : memoryEnabled ? 'Enabled' : 'Disabled'}
+              </p>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">Remember past research to enhance future searches with prior context</p>
             </div>
             <button
               onClick={handleMemoryToggle}
               disabled={memoryLoading}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ml-3 ${
                 memoryEnabled ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'
               } disabled:opacity-50`}
             >
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                memoryEnabled ? 'translate-x-6' : 'translate-x-1'
+              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                memoryEnabled ? 'translate-x-[18px]' : 'translate-x-[3px]'
               }`} />
             </button>
           </div>
 
           {memoryEnabled && (
-            <div className="pt-2 border-t border-[var(--border)]">
+            <div className="mt-3 pt-3 border-t border-[var(--border)]">
               {clearConfirmOpen ? (
                 <div className="flex items-center gap-3">
                   <p className="text-xs text-[var(--text-muted)]">Clear all stored research memories?</p>
                   <button
                     onClick={handleClearMemory}
                     disabled={isClearing}
-                    className="px-3 py-1.5 text-xs font-medium rounded-md bg-red-500/20 text-red-500 hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                    className="px-2.5 py-1 text-xs font-medium rounded-md bg-red-500/20 text-red-500 hover:bg-red-500/30 transition-colors disabled:opacity-50"
                   >
                     {isClearing ? 'Clearing...' : 'Confirm'}
                   </button>
                   <button
                     onClick={() => setClearConfirmOpen(false)}
-                    className="px-3 py-1.5 text-xs font-medium rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                    className="px-2.5 py-1 text-xs font-medium rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
                   >
                     Cancel
                   </button>
@@ -1685,7 +1748,7 @@ function PreferencesTab() {
               ) : (
                 <button
                   onClick={() => setClearConfirmOpen(true)}
-                  className="px-3 py-1.5 text-xs font-medium rounded-md border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--text-muted)] transition-colors"
+                  className="px-2.5 py-1 text-xs font-medium rounded-md border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--text-muted)] transition-colors"
                 >
                   Clear Research Memory
                 </button>
