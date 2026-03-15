@@ -1274,81 +1274,41 @@ function ProfileTab({
 // Grouped model providers structure for preferences
 type ModelId = 'gemini' | 'gemini-pro' | 'openai' | 'openai-mini' | 'deepseek' | 'grok' | 'haiku' | 'sonnet' | 'minimax' | 'glm' | 'kimi' | 'qwen';
 
-interface ModelOption {
-  id: ModelId;
-  label: string;
-  description?: string;
-  tag?: string;
-}
+// Model translation key mapping
+const modelTranslationKeys: Record<ModelId, string> = {
+  'gemini': 'gemini',
+  'gemini-pro': 'geminiPro',
+  'openai': 'openai',
+  'openai-mini': 'openaiMini',
+  'deepseek': 'deepseek',
+  'grok': 'grok',
+  'haiku': 'haiku',
+  'sonnet': 'sonnet',
+  'minimax': 'minimax',
+  'glm': 'glm',
+  'kimi': 'kimi',
+  'qwen': 'vercelGateway',
+};
 
-interface ProviderGroup {
-  provider: string;
-  models: ModelOption[];
+// Provider group key mapping
+type ProviderKey = 'google' | 'anthropic' | 'deepseek' | 'openai' | 'xai' | 'minimax' | 'zhipu' | 'moonshot' | 'qwen';
+
+interface ProviderGroupConfig {
+  key: ProviderKey;
+  models: { id: ModelId; tag?: 'Recommended' | 'Reference' }[];
   experimental?: boolean;
 }
 
-const modelProviderGroups: ProviderGroup[] = [
-  {
-    provider: 'Google',
-    models: [
-      { id: 'gemini', label: 'Gemini 3 Flash', description: 'Latest & fast', tag: 'Recommended' },
-      { id: 'gemini-pro', label: 'Gemini 3 Pro', description: 'Higher quality' },
-    ],
-  },
-  {
-    provider: 'Anthropic',
-    models: [
-      { id: 'haiku', label: 'Claude Haiku 4.5', description: 'Latest & fast' },
-      { id: 'sonnet', label: 'Claude Sonnet 4.6', description: 'Reference' },
-    ],
-  },
-  {
-    provider: 'DeepSeek',
-    models: [
-      { id: 'deepseek', label: 'DeepSeek Chat', description: 'Cost-effective' },
-    ],
-  },
-  {
-    provider: 'OpenAI',
-    models: [
-      { id: 'openai-mini', label: 'GPT-5 mini', description: 'Cost-effective' },
-      { id: 'openai', label: 'GPT-5.4', description: 'Higher quality', tag: 'Reference' },
-    ],
-  },
-  {
-    provider: 'xAI',
-    models: [
-      { id: 'grok', label: 'Grok 4.1 Fast', description: 'Latest & fast' },
-    ],
-  },
-  {
-    provider: 'MiniMax',
-    models: [
-      { id: 'minimax', label: 'MiniMax M2.5' },
-    ],
-    experimental: true,
-  },
-  {
-    provider: 'Zhipu AI',
-    models: [
-      { id: 'glm', label: 'GLM-5' },
-    ],
-    experimental: true,
-  },
-  {
-    provider: 'Moonshot',
-    models: [
-      { id: 'kimi', label: 'Kimi K2.5' },
-    ],
-    experimental: true,
-  },
-  {
-    provider: 'Qwen',
-    models: [
-      { id: 'qwen', label: 'Qwen 3 Max', description: 'Fallback' },
-    ],
-    experimental: true,
-  },
+const providerGroupConfigs: ProviderGroupConfig[] = [
+  { key: 'google', models: [{ id: 'gemini', tag: 'Recommended' }, { id: 'gemini-pro' }] },
+  { key: 'anthropic', models: [{ id: 'haiku' }, { id: 'sonnet' }] },
+  { key: 'deepseek', models: [{ id: 'deepseek' }] },
+  { key: 'openai', models: [{ id: 'openai-mini' }, { id: 'openai', tag: 'Reference' }] },
+  { key: 'xai', models: [{ id: 'grok' }] },
+  { key: 'minimax', models: [{ id: 'minimax' }], experimental: true },
+  { key: 'zhipu', models: [{ id: 'glm' }], experimental: true },
+  { key: 'moonshot', models: [{ id: 'kimi' }], experimental: true },
+  { key: 'qwen', models: [{ id: 'qwen' }], experimental: true },
 ];
 
 // Preferences Tab Content
@@ -1364,6 +1324,16 @@ function PreferencesTab() {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const dropdownRefs = React.useRef<Record<string, HTMLDivElement | null>>({});
   const t = useTranslations('account');
+  const tProviders = useTranslations('providers');
+  const tProviderGroups = useTranslations('providerGroups');
+
+  // i18n helper functions
+  const getModelLabel = (modelId: ModelId) => tProviders(modelTranslationKeys[modelId]);
+  const getModelCaption = (modelId: ModelId) => {
+    const key = modelTranslationKeys[modelId];
+    try { return tProviders(`captions.${key}`); } catch { return undefined; }
+  };
+  const getGroupLabel = (key: ProviderKey) => tProviderGroups(key);
 
   useEffect(() => {
     const loadPreferences = async () => {
@@ -1503,7 +1473,7 @@ function PreferencesTab() {
   }
 
   // Find selected model info
-  const selectedModel = modelProviderGroups.flatMap(g => g.models.map(m => ({ ...m, provider: g.provider, experimental: g.experimental }))).find(m => m.id === preferences?.default_provider);
+  const selectedModelConfig = providerGroupConfigs.flatMap(g => g.models.map(m => ({ ...m, groupKey: g.key, experimental: g.experimental }))).find(m => m.id === preferences?.default_provider);
   const selectedMode = modes.find(m => m.id === preferences?.default_mode);
 
   const languages = [
@@ -1542,17 +1512,17 @@ function PreferencesTab() {
             <div className="min-w-0">
               <p className="text-xs font-medium text-[var(--text-muted)] mb-0.5">{t('defaultModel')}</p>
               <div className="flex items-center gap-2">
-                <p className="text-sm text-[var(--text-primary)]">{selectedModel?.label || 'Gemini 3 Flash'}</p>
-                {selectedModel?.description && (
-                  <span className="text-xs text-[var(--text-muted)]">{selectedModel.description}</span>
+                <p className="text-sm text-[var(--text-primary)]">{preferences?.default_provider ? getModelLabel(preferences.default_provider) : getModelLabel('gemini')}</p>
+                {preferences?.default_provider && getModelCaption(preferences.default_provider) && (
+                  <span className="text-xs text-[var(--text-muted)]">{getModelCaption(preferences.default_provider)}</span>
                 )}
-                {selectedModel?.tag && (
+                {selectedModelConfig?.tag && (
                   <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${
-                    selectedModel.tag === 'Recommended'
+                    selectedModelConfig.tag === 'Recommended'
                       ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
                       : 'bg-[var(--text-muted)]/15 text-[var(--text-muted)]'
                   }`}>
-                    {selectedModel.tag === 'Recommended' ? t('recommended') : t('reference')}
+                    {selectedModelConfig.tag === 'Recommended' ? t('recommended') : t('reference')}
                   </span>
                 )}
               </div>
@@ -1564,14 +1534,15 @@ function PreferencesTab() {
 
           {openDropdown === 'model' && (
             <div className="absolute left-0 right-0 top-full z-40 mt-1 mx-2 rounded-lg border border-[var(--border)] bg-[var(--card)] shadow-lg max-h-80 overflow-y-auto">
-              {modelProviderGroups.map((group, gi) => (
-                <div key={group.provider}>
+              {providerGroupConfigs.map((group, gi) => (
+                <div key={group.key}>
                   {gi > 0 && <div className="border-t border-[var(--border)]" />}
                   <div className={`px-3 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-widest ${group.experimental ? 'text-[var(--text-muted)]/50' : 'text-[var(--text-muted)]'}`}>
-                    {group.provider}
+                    {getGroupLabel(group.key)}
                   </div>
                   {group.models.map((model) => {
                     const isSelected = preferences?.default_provider === model.id;
+                    const caption = getModelCaption(model.id);
                     return (
                       <button
                         key={model.id}
@@ -1588,9 +1559,9 @@ function PreferencesTab() {
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <span className={`text-sm ${group.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--text-primary)]'}`}>{model.label}</span>
-                          {model.description && (
-                            <span className={`ml-2 text-xs ${group.experimental ? 'text-[var(--text-muted)]/50' : 'text-[var(--text-muted)]'}`}>{model.description}</span>
+                          <span className={`text-sm ${group.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--text-primary)]'}`}>{getModelLabel(model.id)}</span>
+                          {caption && (
+                            <span className={`ml-2 text-xs ${group.experimental ? 'text-[var(--text-muted)]/50' : 'text-[var(--text-muted)]'}`}>{caption}</span>
                           )}
                         </div>
                         {model.tag && (
@@ -1707,11 +1678,11 @@ function PreferencesTab() {
         <div className="px-5 py-4">
           <div className="flex items-center justify-between">
             <div className="min-w-0">
-              <p className="text-xs font-medium text-[var(--text-muted)] mb-0.5">Research Memory</p>
+              <p className="text-xs font-medium text-[var(--text-muted)] mb-0.5">{t('researchMemory')}</p>
               <p className="text-sm text-[var(--text-primary)]">
-                {memoryLoading ? '...' : memoryEnabled ? 'Enabled' : 'Disabled'}
+                {memoryLoading ? '...' : memoryEnabled ? t('researchMemoryEnabled') : t('researchMemoryDisabled')}
               </p>
-              <p className="text-xs text-[var(--text-muted)] mt-0.5">Remember past research to enhance future searches with prior context</p>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">{t('researchMemoryDesc')}</p>
             </div>
             <button
               onClick={handleMemoryToggle}
@@ -1730,19 +1701,19 @@ function PreferencesTab() {
             <div className="mt-3 pt-3 border-t border-[var(--border)]">
               {clearConfirmOpen ? (
                 <div className="flex items-center gap-3">
-                  <p className="text-xs text-[var(--text-muted)]">Clear all stored research memories?</p>
+                  <p className="text-xs text-[var(--text-muted)]">{t('clearMemoryConfirm')}</p>
                   <button
                     onClick={handleClearMemory}
                     disabled={isClearing}
                     className="px-2.5 py-1 text-xs font-medium rounded-md bg-red-500/20 text-red-500 hover:bg-red-500/30 transition-colors disabled:opacity-50"
                   >
-                    {isClearing ? 'Clearing...' : 'Confirm'}
+                    {isClearing ? t('clearing') : t('confirm')}
                   </button>
                   <button
                     onClick={() => setClearConfirmOpen(false)}
                     className="px-2.5 py-1 text-xs font-medium rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
                   >
-                    Cancel
+                    {t('cancel')}
                   </button>
                 </div>
               ) : (
@@ -1750,7 +1721,7 @@ function PreferencesTab() {
                   onClick={() => setClearConfirmOpen(true)}
                   className="px-2.5 py-1 text-xs font-medium rounded-md border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--text-muted)] transition-colors"
                 >
-                  Clear Research Memory
+                  {t('clearResearchMemory')}
                 </button>
               )}
             </div>

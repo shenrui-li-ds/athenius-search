@@ -247,6 +247,15 @@
     "researchDesc": "多角度智能深度研究",
     "brainstormName": "头脑风暴",
     "brainstormDesc": "获取创意灵感与想法",
+    "researchMemory": "研究记忆",
+    "researchMemoryEnabled": "已开启",
+    "researchMemoryDisabled": "已关闭",
+    "researchMemoryDesc": "记忆过往研究内容，为未来搜索提供上下文增强",
+    "clearResearchMemory": "清除研究记忆",
+    "clearMemoryConfirm": "确定要清除所有已存储的研究记忆吗？",
+    "clearing": "清除中...",
+    "confirm": "确认",
+    "cancel": "取消",
     "responseLanguage": "回复语言",
     "responseLanguageDesc": "选择AI回复使用的语言。自动模式会根据搜索内容或浏览器语言检测。",
     "responseLanguageAuto": "自动（根据搜索内容和浏览器语言检测）",
@@ -469,7 +478,21 @@
     "minimax": "MiniMax M2.5",
     "glm": "GLM-5",
     "kimi": "Kimi K2.5",
-    "vercelGateway": "Qwen 3 Max"
+    "vercelGateway": "Qwen 3 Max",
+    "captions": {
+      "gemini": "最新且快速",
+      "geminiPro": "尖端水平",
+      "openai": "尖端水平",
+      "openaiMini": "高性价比",
+      "deepseek": "高性价比",
+      "grok": "最新且快速",
+      "haiku": "最新且快速",
+      "sonnet": "尖端水平",
+      "minimax": "国产尖端",
+      "glm": "国产尖端",
+      "kimi": "国产尖端",
+      "vercelGateway": "备用"
+    }
   },
   "providerGroups": {
     "google": "Google",

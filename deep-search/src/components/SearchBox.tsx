@@ -138,6 +138,9 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   const getModeLabel = (modeId: SearchMode) => t(`modes.${modeId}`);
   const getModeDescription = (modeId: SearchMode) => t(`modeDescriptions.${modeId}`);
   const getModelLabel = (modelId: ModelId) => tProviders(modelTranslationKeys[modelId]);
+  const getModelCaption = (modelId: ModelId) => {
+    try { return tProviders(`captions.${modelTranslationKeys[modelId]}`); } catch { return undefined; }
+  };
   const getProviderLabel = (providerKey: ProviderKey) => tProviderGroups(providerKey);
 
   // Fetch available files for attachment
@@ -459,6 +462,9 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                             <div className="flex-1 min-w-0">
                               <div className={`font-medium flex items-center gap-1.5 ${group.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--text-primary)]'}`}>
                                 {getModelLabel(modelId)}
+                                {getModelCaption(modelId) && (
+                                  <span className={`text-xs font-normal ${group.experimental ? 'text-[var(--text-muted)]/50' : 'text-[var(--text-muted)]'}`}>{getModelCaption(modelId)}</span>
+                                )}
                               </div>
                             </div>
                             {selectedModel === modelId && (
@@ -781,6 +787,9 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                       <div className="text-left">
                         <div className={`font-medium flex items-center gap-1.5 ${textColor}`}>
                           {getModelLabel(modelId)}
+                          {getModelCaption(modelId) && (
+                            <span className={`text-xs font-normal ${group.experimental ? 'text-[var(--text-muted)]/50' : 'text-[var(--text-muted)]'}`}>{getModelCaption(modelId)}</span>
+                          )}
                         </div>
                       </div>
                       {isSelected && (

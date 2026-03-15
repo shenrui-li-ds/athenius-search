@@ -247,6 +247,15 @@
     "researchDesc": "Multi-angle comprehensive research",
     "brainstormName": "Brainstorm",
     "brainstormDesc": "Creative exploration of ideas",
+    "researchMemory": "Research Memory",
+    "researchMemoryEnabled": "Enabled",
+    "researchMemoryDisabled": "Disabled",
+    "researchMemoryDesc": "Remember past research to enhance future searches with prior context",
+    "clearResearchMemory": "Clear Research Memory",
+    "clearMemoryConfirm": "Clear all stored research memories?",
+    "clearing": "Clearing...",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
     "responseLanguage": "Response Language",
     "responseLanguageDesc": "Choose the language for AI responses. Auto detects from your query or browser locale.",
     "responseLanguageAuto": "Auto (detect from query & browser)",
@@ -469,7 +478,21 @@
     "minimax": "MiniMax M2.5",
     "glm": "GLM-5",
     "kimi": "Kimi K2.5",
-    "vercelGateway": "Qwen 3 Max"
+    "vercelGateway": "Qwen 3 Max",
+    "captions": {
+      "gemini": "Latest & fast",
+      "geminiPro": "SOTA",
+      "openai": "SOTA",
+      "openaiMini": "Cost-effective",
+      "deepseek": "Cost-effective",
+      "grok": "Latest & fast",
+      "haiku": "Latest & fast",
+      "sonnet": "SOTA",
+      "minimax": "Chinese SOTA",
+      "glm": "Chinese SOTA",
+      "kimi": "Chinese SOTA",
+      "vercelGateway": "Fallback"
+    }
   },
   "providerGroups": {
     "google": "Google",
